@@ -23,8 +23,8 @@ async function loadAircraftData() {
       const alt = parseFloat(data["altitude"]);
 
       const roll = parseFloat(data["phi"]);
-      const pitch = parseFloat(data["theta"]);
-      const yaw = parseFloat(data["psi"]);
+      const pitch = parseFloat(data["psi"]);
+      const yaw = parseFloat(data["theta"]);
 
       console.log("---- Aircraft FDM Data ----");
       for (const [key, value] of Object.entries(data)) {
