@@ -1,8 +1,10 @@
-1). Add file to path in Matlab
-2). Run 'F16Lookup' file to load the data
-3). Run 'simulinkscript' and if Simulink isn't open, open file Flightsim2 also check if initial conditions are loaded in 6dof block.
-4). open terminal in the contained folder (make sure python is installed in the system)
-5).  .venv\Scripts\Activate.ps1 run this for Windows or Source .venv/bin/activate
-6).  run python main.py
-7). http://localhost:8000 open this file in any of the browser.
-8). Now run the file again.
+Add the file to the MATLAB path.
+Run the F16Lookup file to load the data.
+Run simulinkscript. If Simulink isn’t open, open the Flightsim2 file. Also, make sure the initial conditions are loaded in the 6DOF block
+Open a terminal in the project folder (ensure Python is installed on your system).
+Activate the virtual environment:
+-On Windows: .\venv\Scripts\Activate.ps1
+-On Linux: source .venv/bin/activate
+Run python main.py.
+Open http://localhost:8000 in any browser.
+Rerun the file.
