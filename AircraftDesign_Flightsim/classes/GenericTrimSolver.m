@@ -227,6 +227,164 @@ classdef GenericTrimSolver < handle
             obj.converged = converged;
             obj.trim_results = info;
         end
+
+        function [x_trim, u_trim, converged, info] = solve_cruise_trim(obj, altitude, mach_number)
+            [~, a, ~, ~] = atmosisa(altitude);
+            a = max(a, 1e-6);
+            V = mach_number * a;
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, 0, 0, 0);
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_climb_trim(obj, altitude, mach_number, gamma)
+            if nargin < 4 || isempty(gamma)
+                gamma = deg2rad(5);
+            end
+            [~, a, ~, ~] = atmosisa(altitude);
+            a = max(a, 1e-6);
+            V = mach_number * a;
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, gamma, 0, 0);
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_descent_trim(obj, altitude, mach_number, gamma)
+            if nargin < 4 || isempty(gamma)
+                gamma = deg2rad(-3);
+            else
+                gamma = -abs(gamma);
+            end
+            [~, a, ~, ~] = atmosisa(altitude);
+            a = max(a, 1e-6);
+            V = mach_number * a;
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, gamma, 0, 0);
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_dash_trim(obj, altitude, mach_number)
+            [~, a, ~, ~] = atmosisa(altitude);
+            a = max(a, 1e-6);
+            V = mach_number * a;
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, 0, 0, 0);
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_turn_trim(obj, altitude, mach_number, bank_angle, turn_rate)
+            [~, a, ~, ~] = atmosisa(altitude);
+            a = max(a, 1e-6);
+            V = mach_number * a;
+            if nargin < 5 || isempty(turn_rate)
+                g = 9.80665;
+                turn_rate = g * tan(bank_angle) / max(V, 1);
+            end
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, 0, bank_angle, turn_rate);
+        end
+
+        function [x_trim, u_trim, converged, info, ROC] = solve_max_climb_trim(obj, altitude, V_guess_range)
+            if nargin < 3 || isempty(V_guess_range)
+                [~, a, ~, ~] = atmosisa(altitude);
+                V_guess_range = linspace(0.5*a, 1.5*a, 20);
+            end
+            gamma_range = deg2rad([0 3 5 7 10]);
+            best_ROC = -inf;
+            best_x = [];
+            best_u = [];
+            best_info = struct();
+            best_converged = false;
+            for V = V_guess_range
+                for gamma = gamma_range
+                    [x, u, conv, inf_temp] = obj.solve_trim(altitude, V, gamma, 0, 0);
+                    if conv
+                        ROC_temp = V * sin(gamma);
+                        if ROC_temp > best_ROC
+                            best_ROC = ROC_temp;
+                            best_x = x;
+                            best_u = u;
+                            best_info = inf_temp;
+                            best_converged = conv;
+                        end
+                    end
+                end
+            end
+            x_trim = best_x;
+            u_trim = best_u;
+            converged = best_converged;
+            info = best_info;
+            ROC = best_ROC;
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_takeoff_rotation_trim(obj, altitude, V_rotation)
+            gamma = deg2rad(8);
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V_rotation, gamma, 0, 0);
+        end
+
+        function [x_trim, u_trim, converged, info] = solve_landing_approach_trim(obj, altitude, mach_approach)
+            gamma = deg2rad(-3);
+            [~, a, ~, ~] = atmosisa(altitude);
+            V = mach_approach * a;
+            [x_trim, u_trim, converged, info] = obj.solve_trim(altitude, V, gamma, 0, 0);
+        end
+
+        function s = get_summary(obj)
+            s = struct();
+            if isempty(obj.trim_state), return; end
+            x = obj.trim_state;
+            u_b = x(4); v_b = x(5); w_b = x(6);
+            alpha = atan2(w_b, max(abs(u_b),1e-9));
+            beta = atan2(v_b, max(sqrt(u_b^2 + w_b^2), 1e-9));
+            theta = x(8);
+            phi = x(7);
+            gamma = theta - alpha;
+            V = sqrt(u_b^2 + v_b^2 + w_b^2);
+            s.converged = obj.converged;
+            if isfield(obj.trim_results,'residual_norm'), s.residual_norm = obj.trim_results.residual_norm; else, s.residual_norm = []; end
+            if isfield(obj.trim_results,'force_residual_norm'), s.force_residual_norm = obj.trim_results.force_residual_norm; else, s.force_residual_norm = []; end
+            if isfield(obj.trim_results,'moment_residual_norm'), s.moment_residual_norm = obj.trim_results.moment_residual_norm; else, s.moment_residual_norm = []; end
+            s.alpha_deg = rad2deg(alpha);
+            s.beta_deg = rad2deg(beta);
+            s.theta_deg = rad2deg(theta);
+            s.phi_deg = rad2deg(phi);
+            s.gamma_deg = rad2deg(gamma);
+            s.V_ms = V;
+            s.altitude_m = -x(3);
+            if isfield(obj.trim_results,'F_total'), s.F_total = obj.trim_results.F_total; else, s.F_total = []; end
+            if isfield(obj.trim_results,'M_total'), s.M_total = obj.trim_results.M_total; else, s.M_total = []; end
+            ac = obj.aircraft;
+            cs = struct('name',{},'deflection',{},'deflection_deg',{});
+            for i = 1:numel(ac.control_surfaces)
+                cs(i).name = ac.control_surfaces(i).name;
+                cs(i).deflection = ac.control_surfaces(i).deflection;
+                cs(i).deflection_deg = rad2deg(ac.control_surfaces(i).deflection);
+            end
+            s.control_surfaces = cs;
+            pe = struct('name',{},'throttle',{});
+            for k = 1:numel(ac.propulsive_elements)
+                pe(k).name = ac.propulsive_elements{k}.name;
+                pe(k).throttle = ac.propulsive_elements{k}.throttle;
+            end
+            s.propulsive_elements = pe;
+        end
+
+        function print_summary(obj)
+            s = obj.get_summary();
+            if isempty(fieldnames(s))
+                fprintf('=== TRIM SUMMARY ===\n(no trim)\n');
+                return
+            end
+            fprintf('\n=== TRIM SUMMARY ===\n');
+            if isempty(s.residual_norm), s.residual_norm = NaN; end
+            fprintf('Converged: %d\n', s.converged);
+            if isfield(s,'force_residual_norm') && ~isempty(s.force_residual_norm)
+                fprintf('Force residual: %.3e N Moment residual: %.3e N-m\n', s.force_residual_norm, s.moment_residual_norm);
+            else
+                fprintf('Normalized residual: %.3e\n', s.residual_norm);
+            end
+            fprintf('Alt=%.1f m V=%.2f m/s alpha=%.2f deg beta=%.2f deg\n', s.altitude_m, s.V_ms, s.alpha_deg, s.beta_deg);
+            fprintf('theta=%.2f deg phi=%.2f deg gamma=%.2f deg\n', s.theta_deg, s.phi_deg, s.gamma_deg);
+            if ~isempty(s.F_total), fprintf('F_total [N] = [%.3e %.3e %.3e]\n', s.F_total(1), s.F_total(2), s.F_total(3)); end
+            if ~isempty(s.M_total), fprintf('M_total [N-m] = [%.3e %.3e %.3e]\n', s.M_total(1), s.M_total(2), s.M_total(3)); end
+            for i = 1:numel(s.control_surfaces)
+                fprintf('%s: %.6f deg\n', s.control_surfaces(i).name, s.control_surfaces(i).deflection_deg);
+            end
+            for k = 1:numel(s.propulsive_elements)
+                fprintf('%s: throttle=%.6f\n', s.propulsive_elements(k).name, s.propulsive_elements(k).throttle);
+            end
+        end
     end
 end
 
@@ -234,18 +392,13 @@ function r = trim_residual_symmetric(z, ac, altitude, V, gamma, pitch_idx)
 alpha  = z(1);
 dPitch = z(2);
 thr    = max(0.01, min(1, z(3)));
-
 theta = alpha + gamma;
-
 ca = cos(alpha); sa = sin(alpha);
-
 u = V * ca;
 v = 0;
 w = V * sa;
-
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
-
 x = zeros(12,1);
 x(3) = -altitude;
 x(4) = u;
@@ -254,9 +407,7 @@ x(6) = w;
 x(7) = 0;
 x(8) = theta;
 x(9:12) = 0;
-
 ac.state.set_full_state(x);
-
 for i = 1:n_cs
     if ismember(i,pitch_idx)
         ac.control_surfaces(i).set_deflection(clamp_def(ac.control_surfaces(i), dPitch));
@@ -264,22 +415,16 @@ for i = 1:n_cs
         ac.control_surfaces(i).set_deflection(0);
     end
 end
-
 if n_pe > 0
     for k = 1:n_pe
         ac.propulsive_elements{k}.set_throttle(thr);
     end
 end
-
 ac.sync_control_vector_from_components();
 [F_total, M_total, ~] = ac.calculate_total_forces_moments_with_gravity();
-
 m = ac.mass.get_total_mass();
 W = m * 9.80665;
-
-r = [F_total(1)/W;
-     F_total(3)/W;
-     M_total(2)/(W * ac.geometry.mean_aerodynamic_chord)];
+r = [F_total(1)/W; F_total(3)/W; M_total(2)/(W * ac.geometry.mean_aerodynamic_chord)];
 end
 
 function r = trim_residual_general(z, ac, altitude, V, gamma, phi, turn_rate, pitch_idx, roll_idx, yaw_idx)
@@ -289,19 +434,14 @@ dPitch = z(3);
 dRoll  = z(4);
 dYaw   = z(5);
 thr    = max(0.01, min(1, z(6)));
-
 theta = alpha + gamma;
-
 ca = cos(alpha); sa = sin(alpha);
 cb = cos(beta);  sb = sin(beta);
-
 u = V * ca * cb;
 v = V * sb;
 w = V * sa * cb;
-
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
-
 x = zeros(12,1);
 x(3) = -altitude;
 x(4) = u;
@@ -309,7 +449,6 @@ x(5) = v;
 x(6) = w;
 x(7) = phi;
 x(8) = theta;
-
 if abs(turn_rate) > 1e-9
     cp = cos(phi); sp = sin(phi);
     x(10) = 0;
@@ -318,9 +457,7 @@ if abs(turn_rate) > 1e-9
 else
     x(10:12) = 0;
 end
-
 ac.state.set_full_state(x);
-
 for i = 1:n_cs
     if ismember(i,pitch_idx)
         ac.control_surfaces(i).set_deflection(clamp_def(ac.control_surfaces(i), dPitch));
@@ -332,27 +469,18 @@ for i = 1:n_cs
         ac.control_surfaces(i).set_deflection(0);
     end
 end
-
 if n_pe > 0
     for k = 1:n_pe
         ac.propulsive_elements{k}.set_throttle(thr);
     end
 end
-
 ac.sync_control_vector_from_components();
 [F_total, M_total, ~] = ac.calculate_total_forces_moments_with_gravity();
-
 m = ac.mass.get_total_mass();
 W = m * 9.80665;
 b = ac.geometry.wing_span;
 c = ac.geometry.mean_aerodynamic_chord;
-
-r = [F_total(1)/W;
-     F_total(2)/W;
-     F_total(3)/W;
-     M_total(1)/(W * b);
-     M_total(2)/(W * c);
-     M_total(3)/(W * b)];
+r = [F_total(1)/W; F_total(2)/W; F_total(3)/W; M_total(1)/(W * b); M_total(2)/(W * c); M_total(3)/(W * b)];
 end
 
 function d = clamp_def(cs, d)
