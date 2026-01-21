@@ -96,9 +96,12 @@ classdef PerformanceAnalysis < handle
                             [F_k, ~, ~] = pe.get_force_moment(M_inf, alt_curr, V, rho);
                             F_thrust = F_thrust + F_k;
                         end
+vel_b = x(4:6);
+Vmag = max(norm(vel_b),1e-9);
+Vhat = vel_b / Vmag;
 
-                        T = F_thrust(1);
-                        D = max(-F_aero(1), 0);
+T = dot(F_thrust, Vhat);
+D = max(-dot(F_aero, Vhat), 0);
 
                         m = ac.mass.get_total_mass();
                         g = 9.80665;
