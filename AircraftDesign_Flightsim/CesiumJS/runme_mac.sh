@@ -1,28 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT"
+cd "$(dirname "$0")"
 
-VENV="$ROOT/.venv"
+VENV=".venv"
 PY="$VENV/bin/python"
 
-if [[ ! -x "$PY" ]]; then
-  python3 -m venv "$VENV" || python -m venv "$VENV"
+# Pick a Python
+if command -v python3 >/dev/null 2>&1; then
+  PYLAUNCH="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYLAUNCH="python"
+else
+  echo "Python not found. Install it first:"
+  echo "  brew install python"
+  exit 1
 fi
 
-"$PY" -m pip install --upgrade pip
+# Create venv if missing
+if [ ! -x "$PY" ]; then
+  "$PYLAUNCH" -m venv "$VENV"
+fi
+
+# Install deps
+"$PY" -m pip install -U pip
 "$PY" -m pip install "websockets>=12,<13"
 
-MAIN=""
-if [[ -f "$ROOT/main.py" ]]; then
-  MAIN="$ROOT/main.py"
-else
-  MAIN="$(find "$ROOT" -type f -name "main.py" -print -quit || true)"
-fi
-
-[[ -z "$MAIN" ]] && exit 1
-
-"$PY" "$MAIN"
-read -n 1 -s -r -p "Press any key to close..."
-echo
+# Run main
+"$PY" main.py
