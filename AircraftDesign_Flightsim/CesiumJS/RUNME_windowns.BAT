@@ -47,7 +47,7 @@ set "VENV=%ROOT%.venv"
 set "PY=%VENV%\Scripts\python.exe"
 
 if not exist "%PY%" (
-  "%PYLAUNCH%" -m venv "%VENV%"
+  call %PYLAUNCH% -m venv "%VENV%"
   if errorlevel 1 goto :fail
 )
 
