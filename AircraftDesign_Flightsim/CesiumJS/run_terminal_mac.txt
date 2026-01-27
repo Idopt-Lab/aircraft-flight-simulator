@@ -1,0 +1,3 @@
+cd ~/Downloads/aircraft-flight-simulator-main/AircraftDesign_Flightsim/CesiumJS
+sed -i '' $'s/\r$//' runme_mac.sh
+bash runme_mac.sh
