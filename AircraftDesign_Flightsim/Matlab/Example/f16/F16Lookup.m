@@ -46,12 +46,13 @@ CYb = -1.1460;
 Clb = -0.186;
 Cnb = 0.241;
 
-Cmalpha_vs_alpha = [-0.0280, -0.0350, -0.0430, -0.0500, -0.0590, -0.0650, -0.0720, -0.0800, -0.0850, -0.0900, -0.0950, -0.1000];
+Cmalpha_M_mach = [0.6, 0.8, 0.9, 1.0, 1.1, 1.2];
+Cmalpha_M_data = [0.0, 0.0974, -0.3323, -0.9626, -0.8480, -0.7907];
 
-CLq = 35.0;
-Cmq = -10;
-Clp = -0.80;
-Cnr = -0.75;
+CLq = 28.9;
+Cmq = -5.23;
+Clp = -0.443;
+Cnr = -0.378;
 
 Clr_vs_alpha = [-0.126, -0.026, 0.063, 0.113, 0.208, 0.230, 0.319, 0.437, 0.680, 0.100, 0.447, -0.330];
 Cnp_vs_alpha = [-0.061, -0.052, -0.052, 0.012, 0.013, 0.024, -0.050, -0.150, -0.130, -0.158, -0.240, -0.150];
@@ -87,15 +88,15 @@ CL = interp2(elevator_range, alpha_range, CLDh_table, de, alpha, 'linear', 0);
 CD = interp2(elevator_range, alpha_range, CDDh_table, de, alpha, 'linear', 0);
 Cm = interp2(elevator_range, alpha_range, CmDh_table, de, alpha, 'linear', 0);
 
-CD_mach_increment = interp1(mach_wave, CD_wave, mach, 'linear', 0.015);
+CD_mach_increment = interp1(mach_wave, CD_wave, mach, 'linear', 'extrap');
 CD = CD + CD_mach_increment;
 
-Cmalpha = interp1(alpha_range, Cmalpha_vs_alpha, alpha, 'linear', 'extrap');
-Cm = Cm + Cmalpha*alpha;
+Cmalpha = interp1(Cmalpha_M_mach, Cmalpha_M_data, mach, 'linear', 'extrap');
+Cm = Cm + Cmalpha * alpha;
 
-CY = CYb*beta;
-Cl = Clb*beta;
-Cn = Cnb*beta;
+CY = CYb * beta;
+Cl = Clb * beta;
+Cn = Cnb * beta;
 
 if V > 1
     p_hat = omega(1)*b/(2*V);

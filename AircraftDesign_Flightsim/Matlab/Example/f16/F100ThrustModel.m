@@ -1,68 +1,82 @@
-function [T, fuel_flow] = F100ThrustModel(throttle, M, alt_m, V, rho, T_max_ref)
+function [T, fuel_flow] = F100ThrustModel(throttle, M, alt_m, V, rho, ~)
 
-persistent mach_range altitude_range idle_T mil_T max_T T_ref
-if isempty(mach_range)
-    mach_range = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4];
-    altitude_range = [0, 10000, 20000, 30000, 40000, 50000, 60000] * 0.3048;
+persistent mach_idle mach_mil mach_max altitude_range idle_T mil_T max_T
+
+if isempty(mach_idle)
+    altitude_range = [-10000, 0, 10000, 20000, 30000, 40000, 50000, 60000] * 0.3048;
     
-    idle_thrust_lbf = [716 775 1018 1319 1735 2152 0; 
-                       635 425 690 1010 1330 1700 0; 
-                       60 25 345 755 1130 1525 0; 
-                       -1020 -710 -300 350 910 1360 0; 
-                       -2700 -1900 -1300 -247 600 1100 0; 
-                       -3600 -1400 -595 -342 -200 700 0; 
-                       -4000 -1800 -800 -500 -300 500 0; 
-                       -4200 -2000 -900 -600 -400 400 0];
+    mach_idle = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
+    idle_thrust_lbf = [
+        766   870   941  1236  1602  2107  2612     0;
+        890   893   597   969  1420  1868  2391     0;
+         71    84    36   484  1060  1588  2143     0;
+      -1431 -1431  -998  -422   492  1279  1911     0;
+      -3790 -3790 -2668 -1825   844  1546  1603     0;
+      -5057 -5057 -1966  -835  -481   983  1425     0];
     
-    mil_thrust_lbf = [14670 10856 7834 5457 3535 2186 0; 
-                      12680 9150 6313 4040 2470 1400 0; 
-                      12610 9312 6610 4290 2600 1560 0; 
-                      12640 9839 7090 4660 2840 1660 0; 
-                      12390 10176 7750 5320 3250 1930 0; 
-                      11680 9848 8050 6100 3800 2310 0; 
-                      16353 12962 9891 7245 4840 2991 0; 
-                      17509 14190 11041 8205 5539 3435 0];
+    mach_mil = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4];
+    mil_thrust_lbf = [
+       22428 17800 13172  9505  6622  4290  2652     0;
+       20844 16633 12412  9007  6321  4112  2545     0;
+       20470 16394 12318  9007  6355  4149  2581     0;
+       21022 16928 12834  9470  6728  4414  2742     0;
+       22393 18156 13922 10360  7423  4895  3026     0;
+       24368 19936 15504 11590  8455  5607  3471     0;
+       26433 21894 17355 13243  9701  6479  4005     0;
+       28375 23852 19331 15041 11178  7548  4682     0];
     
-    max_thrust_lbf = [23830 19502 15792 12582 8950 5545 0; 
-                      21420 15700 11225 7323 4435 2600 0; 
-                      22700 16860 12250 8154 5000 2835 0; 
-                      24240 18910 13760 9285 5700 3215 0; 
-                      26070 21075 15975 11115 6860 3950 0; 
-                      28886 23319 18300 13484 8642 5057 0; 
-                      28951 23670 19114 15155 10744 6658 0; 
-                      37413 31184 24959 19578 13788 8543 0];
+    mach_max = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6];
+    max_thrust_lbf = [
+       34267 29000 23732 19219 15312 10893  6748     0;
+       32794 27857 22878 18578 14836 10572  6548     0;
+       32335 27475 22619 18386 14703 10485  6496     0;
+       32738 27809 22890 18618 14889 10617  6578     0;
+       33951 28833 23709 19277 15397 10974  6800     0;
+       35991 30234 24837 20106 16038 11418  7075     0;
+       38373 31947 26447 21602 17220 12241  7583     0;
+       41647 34879 29213 23686 18924 13453  8340     0;
+       45564 38454 31344 25230 19935 14094  8732     0;
+       50176 42278 34385 27585 21736 15339  9503     0;
+       53131 45530 37950 30374 23827 16779 10398     0;
+       57106 49002 40922 35952 26390 18441 11426     0;
+       60028 52200 44370 38860 29000 20880 13340     0;
+       63800 55680 47552 41760 31900 23200 15080     0];
     
-    idle_T = idle_thrust_lbf * 4.448;
-    mil_T = mil_thrust_lbf * 4.448;
-    max_T = max_thrust_lbf * 4.448;
-    T_ref = 128992;
+    idle_T = idle_thrust_lbf * 4.44822;
+    mil_T = mil_thrust_lbf * 4.44822;
+    max_T = max_thrust_lbf * 4.44822;
 end
 
 throttle = max(0, min(1, throttle));
-mach_limited = max(0, min(1.4, M));
-alt_limited = max(0, min(altitude_range(end), alt_m));
+alt_limited = max(altitude_range(1), min(altitude_range(end), alt_m));
 
-idle_thrust = interp2(altitude_range, mach_range, idle_T, alt_limited, mach_limited, 'linear', 0);
-mil_thrust = interp2(altitude_range, mach_range, mil_T, alt_limited, mach_limited, 'linear', 0);
-max_thrust = interp2(altitude_range, mach_range, max_T, alt_limited, mach_limited, 'linear', 0);
+if M <= 1.0
+    mach_limited_idle = max(0, min(1.0, M));
+    idle_thrust = interp2(altitude_range, mach_idle, idle_T, alt_limited, mach_limited_idle, 'linear', 0);
+    mach_limited_mil = max(0, min(1.0, M));
+    mil_thrust = interp2(altitude_range, mach_mil, mil_T, alt_limited, mach_limited_mil, 'linear', 0);
+    mach_limited_max = max(0, min(1.0, M));
+    max_thrust = interp2(altitude_range, mach_max, max_T, alt_limited, mach_limited_max, 'linear', 0);
+else
+    idle_thrust = interp2(altitude_range, mach_idle, idle_T, alt_limited, 1.0, 'linear', 0);
+    mach_limited_mil = max(1.0, min(1.4, M));
+    mil_thrust = interp2(altitude_range, mach_mil, mil_T, alt_limited, mach_limited_mil, 'linear', 0);
+    mach_limited_max = max(1.0, min(2.6, M));
+    max_thrust = interp2(altitude_range, mach_max, max_T, alt_limited, mach_limited_max, 'linear', 0);
+end
 
 if throttle <= 0.8
-    T_abs = idle_thrust + (throttle/0.8)*(mil_thrust - idle_thrust);
+    T = idle_thrust + (throttle/0.8)*(mil_thrust - idle_thrust);
 else
     ab_ratio = (throttle - 0.8)/0.2;
-    T_abs = mil_thrust + ab_ratio*(max_thrust - mil_thrust);
+    T = mil_thrust + ab_ratio*(max_thrust - mil_thrust);
 end
 
-if nargin >= 6 && ~isempty(T_max_ref) && T_max_ref > 0
-    scale = T_max_ref / T_ref;
-    T_abs = T_abs * scale;
-end
-
-T = max(0, T_abs);
+T = max(0, T);
 
 TSFC_idle = 0.8;
-TSFC_mil = 0.7;
-TSFC_max = 1.5;
+TSFC_mil = 0.74;
+TSFC_max = 2.05;
 
 if throttle <= 0.8
     TSFC = TSFC_idle + (throttle/0.8)*(TSFC_mil - TSFC_idle);
@@ -72,5 +86,4 @@ else
 end
 
 fuel_flow = (T / 9.81) * (TSFC / 3600);
-
 end
