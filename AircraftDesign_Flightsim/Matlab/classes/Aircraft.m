@@ -14,6 +14,9 @@ classdef Aircraft < handle
         control
         control_registry_built = false
         time_step = 0.01
+        takeoff_obj
+        landing_obj
+        mission_planner_obj
     end
 
     methods
@@ -52,6 +55,65 @@ classdef Aircraft < handle
                 obj.performance_obj = PerformanceAnalysis(obj);
             end
             perf = obj.performance_obj;
+        end
+
+        function to = get_takeoff(obj)
+            if isempty(obj.takeoff_obj) || ~isvalid(obj.takeoff_obj)
+                obj.takeoff_obj = TakeoffAnalysis(obj);
+            end
+            to = obj.takeoff_obj;
+        end
+
+        function ld = get_landing(obj)
+            if isempty(obj.landing_obj) || ~isvalid(obj.landing_obj)
+                obj.landing_obj = LandingAnalysis(obj);
+            end
+            ld = obj.landing_obj;
+        end
+
+        function mp = get_mission_planner(obj, dt)
+            if nargin < 2 || isempty(dt), dt = 0.25; end
+            if isempty(obj.mission_planner_obj) || ~isvalid(obj.mission_planner_obj)
+                obj.mission_planner_obj = MissionPlanner(obj, dt);
+            else
+                obj.mission_planner_obj.dt = dt;
+                obj.mission_planner_obj.aircraft = obj;
+            end
+            mp = obj.mission_planner_obj;
+        end
+
+        function varargout = run_takeoff(obj, varargin)
+            to = obj.get_takeoff();
+            if ~ismethod(to,'calculate_takeoff')
+                if nargout > 0
+                    varargout = cell(1,nargout);
+                    varargout{1} = to;
+                end
+                return
+            end
+            if nargout == 0
+                to.calculate_takeoff(varargin{:});
+            else
+                varargout = cell(1,nargout);
+                [varargout{:}] = to.calculate_takeoff(varargin{:});
+            end
+        end
+
+        function varargout = run_landing(obj, varargin)
+            ld = obj.get_landing();
+            if ~ismethod(ld,'calculate_landing')
+                if nargout > 0
+                    varargout = cell(1,nargout);
+                    varargout{1} = ld;
+                end
+                return
+            end
+            if nargout == 0
+                ld.calculate_landing(varargin{:});
+            else
+                varargout = cell(1,nargout);
+                [varargout{:}] = ld.calculate_landing(varargin{:});
+            end
         end
 
         function add_control_surface(obj, cs)
@@ -171,9 +233,26 @@ classdef Aircraft < handle
         end
 
         function [F_total, M_total, total_fuel_flow] = calculate_external_forces_moments(obj)
+            F_total = zeros(3,1);
+            M_total = zeros(3,1);
+            total_fuel_flow = 0;
+
             x = obj.state.get_full_state();
             u_ctrl = obj.get_control_vector();
-            [F_aero, M_aero, ~] = obj.aero.calculate_forces_moments(x, u_ctrl, obj.geometry, obj, obj.time_step);
+
+            F_aero = zeros(3,1);
+            M_aero = zeros(3,1);
+
+            try
+                [F_aero, M_aero, ~] = obj.aero.calculate_forces_moments(x, u_ctrl, obj.geometry, obj, obj.time_step);
+                if isempty(F_aero) || numel(F_aero) ~= 3, F_aero = zeros(3,1); end
+                if isempty(M_aero) || numel(M_aero) ~= 3, M_aero = zeros(3,1); end
+                F_aero = F_aero(:);
+                M_aero = M_aero(:);
+            catch
+                F_aero = zeros(3,1);
+                M_aero = zeros(3,1);
+            end
 
             u_b = x(4); v_b = x(5); w_b = x(6);
             V = sqrt(u_b^2 + v_b^2 + w_b^2);
@@ -183,29 +262,57 @@ classdef Aircraft < handle
 
             F_thrust = zeros(3,1);
             M_thrust = zeros(3,1);
-            total_fuel_flow = 0;
 
             for k = 1:numel(obj.propulsive_elements)
                 pe = obj.propulsive_elements{k};
-                [F_k, M_k, ff_k] = pe.get_force_moment(M_inf, alt, V, rho);
-                F_thrust = F_thrust + F_k;
-                M_thrust = M_thrust + M_k;
-                total_fuel_flow = total_fuel_flow + ff_k;
+                try
+                    [F_k, M_k, ff_k] = pe.get_force_moment(M_inf, alt, V, rho);
+                    if isempty(F_k) || numel(F_k) ~= 3, F_k = zeros(3,1); end
+                    if isempty(M_k) || numel(M_k) ~= 3, M_k = zeros(3,1); end
+                    if isempty(ff_k) || ~isfinite(ff_k), ff_k = 0; end
+                    F_thrust = F_thrust + F_k(:);
+                    M_thrust = M_thrust + M_k(:);
+                    total_fuel_flow = total_fuel_flow + ff_k;
+                catch
+                end
             end
 
-            F_total = F_aero + F_thrust;
-            M_total = M_aero + M_thrust;
+            F_ext = F_aero + F_thrust;
+            M_ext = M_aero + M_thrust;
+
+            F_total = F_ext;
+            M_total = M_ext;
+
             obj.last_fuel_flow = total_fuel_flow;
         end
 
         function [F_total, M_total, total_fuel_flow] = calculate_total_forces_moments_with_gravity(obj)
+            F_total = zeros(3,1);
+            M_total = zeros(3,1);
+            total_fuel_flow = 0;
+
             x = obj.state.get_full_state();
-            [F_ext, M_ext, ff] = obj.calculate_external_forces_moments();
+
+            try
+                [F_ext, M_ext, ff] = obj.calculate_external_forces_moments();
+            catch
+                F_ext = zeros(3,1);
+                M_ext = zeros(3,1);
+                ff = 0;
+            end
+
+            if isempty(F_ext) || numel(F_ext) ~= 3, F_ext = zeros(3,1); end
+            if isempty(M_ext) || numel(M_ext) ~= 3, M_ext = zeros(3,1); end
+            F_ext = F_ext(:);
+            M_ext = M_ext(:);
+
             m = obj.mass.get_total_mass();
             g = 9.80665;
+
             phi = x(7);
             theta = x(8);
             F_gravity_body = m * g * [-sin(theta); sin(phi)*cos(theta); cos(phi)*cos(theta)];
+
             F_total = F_ext + F_gravity_body;
             M_total = M_ext;
             total_fuel_flow = ff;

@@ -25,7 +25,6 @@ classdef StabilityAnalysis < handle
     methods
         function obj = StabilityAnalysis(aircraft)
             if nargin >= 1, obj.aircraft = aircraft; end
-            obj.modes = struct();
             obj.identify_control_indices();
         end
 
@@ -54,76 +53,66 @@ classdef StabilityAnalysis < handle
             if isempty(obj.trim_state) || isempty(obj.trim_controls)
                 error('StabilityAnalysis:TrimNotSet','trim_state and trim_controls must be set before linearize')
             end
-
-            state = obj.trim_state;
-            controls = obj.trim_controls;
-            x_dot_0 = obj.state_derivative(state, controls);
-
-            if isempty(obj.state_indices)
-                state_indices = [4, 5, 6, 7, 8, 9, 10, 11, 12];
-            else
-                state_indices = obj.state_indices(:).';
+            if isempty(obj.aircraft) || ~isvalid(obj.aircraft)
+                error('StabilityAnalysis:InvalidAircraft','aircraft is empty or invalid')
             end
 
-            n_states = numel(state_indices);
-            n_controls = numel(controls);
+            x0 = obj.trim_state(:);
+            u0 = obj.trim_controls(:);
 
-            A_reduced = zeros(n_states, n_states);
-            for i = 1:n_states
-                idx = state_indices(i);
-                state_p = state; state_m = state;
-                state_p(idx) = state_p(idx) + dx;
-                state_m(idx) = state_m(idx) - dx;
-                xdot_p = obj.state_derivative(state_p, controls);
-                xdot_m = obj.state_derivative(state_m, controls);
-                A_reduced(:, i) = (xdot_p(state_indices) - xdot_m(state_indices)) / (2*dx);
+            nX = numel(x0);
+            nU = numel(u0);
+
+            A = zeros(nX, nX);
+            B = zeros(nX, nU);
+
+            f0 = obj.state_derivative(x0, u0);
+
+            for i = 1:nX
+                xp = x0; xm = x0;
+                xp(i) = xp(i) + dx;
+                xm(i) = xm(i) - dx;
+                fp = obj.state_derivative(xp, u0);
+                fm = obj.state_derivative(xm, u0);
+                A(:,i) = (fp - fm) / (2*dx);
             end
 
-            B_reduced = zeros(n_states, n_controls);
-            for j = 1:n_controls
-                controls_p = controls; controls_m = controls;
-                controls_p(j) = controls_p(j) + du;
-                controls_m(j) = controls_m(j) - du;
-                xdot_p = obj.state_derivative(state, controls_p);
-                xdot_m = obj.state_derivative(state, controls_m);
-                B_reduced(:, j) = (xdot_p(state_indices) - xdot_m(state_indices)) / (2*du);
+            for j = 1:nU
+                up = u0; um = u0;
+                up(j) = up(j) + du;
+                um(j) = um(j) - du;
+                fp = obj.state_derivative(x0, up);
+                fm = obj.state_derivative(x0, um);
+                B(:,j) = (fp - fm) / (2*du);
             end
-
-            A = zeros(12, 12);
-            A(state_indices, state_indices) = A_reduced;
-            A(1:3, 4:6) = eye(3);
-
-            B = zeros(12, n_controls);
-            B(state_indices, :) = B_reduced;
 
             obj.A_matrix = A;
             obj.B_matrix = B;
         end
 
         function x_dot = state_derivative(obj, state, controls)
-            if isempty(obj.aircraft) || ~isvalid(obj.aircraft)
-                error('StabilityAnalysis:InvalidAircraft','aircraft is empty or invalid')
-            end
+            ac = obj.aircraft;
 
-            obj.aircraft.state.set_full_state(state);
-            obj.aircraft.set_controls_from_vector(controls);
+            x_old = ac.state.get_full_state();
+            u_old = ac.get_control_vector();
+            dt_old = ac.time_step;
 
-            [F_external, M_external, ~] = obj.aircraft.calculate_external_forces_moments();
+            ac.time_step = max(ac.time_step, 1e-3);
+            ac.state.set_full_state(state);
+            ac.set_controls_from_vector(controls);
 
-            mass = obj.aircraft.mass.get_total_mass();
-            I = obj.aircraft.mass.get_inertia_matrix();
+            [F_ext, M_ext, ~] = ac.calculate_external_forces_moments();
 
+            m = ac.mass.get_total_mass();
+            I = ac.mass.get_inertia_matrix();
+
+            pos = state(1:3);
             vel = state(4:6);
-            euler = state(7:9);
-            rates = state(10:12);
+            eul = state(7:9);
+            omg = state(10:12);
 
-            phi = euler(1);
-            theta = euler(2);
-            psi = euler(3);
-
-            p = rates(1);
-            q = rates(2);
-            r = rates(3);
+            phi = eul(1); theta = eul(2); psi = eul(3);
+            p = omg(1); q = omg(2); r = omg(3);
 
             cp = cos(phi); sp = sin(phi);
             ct = cos(theta); st = sin(theta);
@@ -136,34 +125,37 @@ classdef StabilityAnalysis < handle
             pos_dot = R_be * vel;
 
             g = 9.80665;
-            F_gravity_body = mass * g * [-sin(theta); sin(phi)*cos(theta); cos(phi)*cos(theta)];
+            Fg_b = m * g * [-sin(theta); sin(phi)*cos(theta); cos(phi)*cos(theta)];
+            F_b = F_ext + Fg_b;
 
-            F_total = F_external + F_gravity_body;
+            acc_b = F_b / max(m, 1e-9);
 
-            accel_body = F_total / mass;
-
-            vel_dot = zeros(3, 1);
-            vel_dot(1) = accel_body(1) - vel(3)*q + vel(2)*r;
-            vel_dot(2) = accel_body(2) + vel(3)*p - vel(1)*r;
-            vel_dot(3) = accel_body(3) - vel(2)*p + vel(1)*q;
+            vel_dot = zeros(3,1);
+            vel_dot(1) = acc_b(1) - vel(3)*q + vel(2)*r;
+            vel_dot(2) = acc_b(2) + vel(3)*p - vel(1)*r;
+            vel_dot(3) = acc_b(3) - vel(2)*p + vel(1)*q;
 
             cth = cos(theta);
-            if abs(cth) < 1e-6, cth = sign(cth + 1e-12)*1e-6; end
+            if abs(cth) < 1e-8, cth = sign(cth + 1e-12)*1e-8; end
             tt = tan(theta);
-            st_inv = 1 / cth;
+            sec = 1/cth;
 
-            euler_dot = zeros(3, 1);
-            euler_dot(1) = p + q*sp*tt + r*cp*tt;
-            euler_dot(2) = q*cp - r*sp;
-            euler_dot(3) = q*sp*st_inv + r*cp*st_inv;
+            eul_dot = zeros(3,1);
+            eul_dot(1) = p + q*sp*tt + r*cp*tt;
+            eul_dot(2) = q*cp - r*sp;
+            eul_dot(3) = q*sp*sec + r*cp*sec;
 
-            rates_dot = I \ (M_external - cross(rates, I * rates));
+            omg_dot = I \ (M_ext - cross(omg, I*omg));
 
-            x_dot = zeros(12, 1);
+            x_dot = zeros(12,1);
             x_dot(1:3) = pos_dot;
             x_dot(4:6) = vel_dot;
-            x_dot(7:9) = euler_dot;
-            x_dot(10:12) = rates_dot;
+            x_dot(7:9) = eul_dot;
+            x_dot(10:12) = omg_dot;
+
+            ac.time_step = dt_old;
+            ac.state.set_full_state(x_old);
+            ac.set_controls_from_vector(u_old);
         end
 
         function analyze_modes(obj)
@@ -175,16 +167,16 @@ classdef StabilityAnalysis < handle
 
             obj.modes = struct();
             for i = 1:numel(obj.eigenvalues)
-                lambda = obj.eigenvalues(i);
-                obj.modes.(sprintf('Mode_%d',i)) = obj.characterize_mode(lambda, V(:,i));
+                lam = obj.eigenvalues(i);
+                obj.modes.(sprintf('Mode_%d',i)) = obj.characterize_mode(lam, V(:,i));
             end
         end
 
-        function mode_char = characterize_mode(obj, lambda, eigvec)
+        function mode_char = characterize_mode(~, lambda, eigvec)
             mode_char = struct();
             mode_char.eigenvalue = lambda;
 
-            if abs(imag(lambda)) > 1e-6
+            if abs(imag(lambda)) > 1e-8
                 omega_n = abs(lambda);
                 zeta = -real(lambda) / max(omega_n, 1e-12);
                 freq_hz = abs(imag(lambda)) / (2*pi);
@@ -255,7 +247,7 @@ classdef StabilityAnalysis < handle
                 long_energy = u_comp + w_comp + theta_comp + q_comp;
                 lat_energy  = v_comp + phi_comp + p_comp + r_comp;
 
-                if abs(imag(lambda)) > 1e-6
+                if abs(imag(lambda)) > 1e-8
                     period = 2*pi / max(abs(imag(lambda)), 1e-12);
                     zeta = -real(lambda) / max(abs(lambda), 1e-12);
 
@@ -294,39 +286,6 @@ classdef StabilityAnalysis < handle
             s.dutch_roll = obj.dutch_roll;
             s.roll_subsidence = obj.roll_subsidence;
             s.spiral = obj.spiral;
-        end
-
-        function display_modes(obj)
-            if isempty(obj.eigenvalues)
-                fprintf('=== MODES ===\n(no eigenvalues)\n');
-                return
-            end
-            fprintf('\n=== EIGENVALUES ===\n');
-            for i = 1:numel(obj.eigenvalues)
-                lam = obj.eigenvalues(i);
-                fprintf('%2d: % .6e %+.6ei\n', i, real(lam), imag(lam));
-            end
-
-            if ~isempty(obj.short_period)
-                m = obj.short_period;
-                fprintf('\nSHORT PERIOD: idx=%d  lambda=% .4e%+.4ei  T=%.2f s  zeta=%.3f\n', m.index, real(m.lambda), imag(m.lambda), m.period, m.damping);
-            end
-            if ~isempty(obj.phugoid)
-                m = obj.phugoid;
-                fprintf('PHUGOID:     idx=%d  lambda=% .4e%+.4ei  T=%.2f s  zeta=%.3f\n', m.index, real(m.lambda), imag(m.lambda), m.period, m.damping);
-            end
-            if ~isempty(obj.dutch_roll)
-                m = obj.dutch_roll;
-                fprintf('DUTCH ROLL:  idx=%d  lambda=% .4e%+.4ei  T=%.2f s  zeta=%.3f\n', m.index, real(m.lambda), imag(m.lambda), m.period, m.damping);
-            end
-            if ~isempty(obj.roll_subsidence)
-                m = obj.roll_subsidence;
-                fprintf('ROLL SUB:    idx=%d  lambda=% .4e  tau=%.2f s\n', m.index, real(m.lambda), m.time_constant);
-            end
-            if ~isempty(obj.spiral)
-                m = obj.spiral;
-                fprintf('SPIRAL:      idx=%d  lambda=% .4e  tau=%.2f s  stable=%d\n', m.index, real(m.lambda), m.time_constant, m.stable);
-            end
         end
     end
 end

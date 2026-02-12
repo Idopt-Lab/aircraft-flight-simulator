@@ -138,7 +138,7 @@ classdef Aerodynamics < handle
             Mp = Cm * q * S * cbar;
             Ny = Cn * q * S * b;
             
-            alpha = atan2(w_b, max(u_b, 1e-9));
+            alpha = atan2(w_b, max(abs(u_b), 1e-9));
             ca = cos(alpha);
             sa = sin(alpha);
             
@@ -378,7 +378,7 @@ classdef Aerodynamics < handle
                 cbar = S / max(b, 1e-9);
             end
             
-            coeff_base = obj.coeff_lookup(x, zeros(size(u)), geom);
+            coeff_base = obj.coeff_lookup(x, u, geom);
             
             CL_base = coeff_base.CL;
             CD_base = coeff_base.CD;

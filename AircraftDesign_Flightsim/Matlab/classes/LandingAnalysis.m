@@ -33,13 +33,13 @@ classdef LandingAnalysis < handle
 
             m = ac.mass.get_total_mass();
             W = m * obj.g;
-            S = ac.geometry.wing_area;
+            Sref = ac.geometry.wing_area;
 
             if p.CLmax_landing <= 0
                 error('LandingAnalysis:CLmax','CLmax_landing must be > 0');
             end
 
-            Vs = sqrt(max(2*W/(rho*max(S,1e-9)*max(p.CLmax_landing,1e-6)), 0));
+            Vs = sqrt(max(2*W/(rho*max(Sref,1e-9)*max(p.CLmax_landing,1e-6)), 0));
             Vapp = p.Vapp_to_Vs_ratio * Vs;
             Vtd  = p.Vtd_to_Vapp_ratio * Vapp;
 
@@ -48,7 +48,7 @@ classdef LandingAnalysis < handle
 
             [S_app, S_flare] = obj.approach_and_flare_distance(p);
 
-            [S_ground, ground_dbg] = obj.ground_roll_distance(altitude_m, rho, a, W, S, Vtd, p);
+            [S_ground, ground_dbg] = obj.ground_roll_distance(altitude_m, rho, a, W, Sref, Vtd, p);
 
             S_base  = S_app + S_flare + S_ground;
             S_total = S_base * max(p.safety_factor, 1.0);
@@ -222,8 +222,9 @@ classdef LandingAnalysis < handle
                     ax = min(ax, -p.min_brake_decel_mps2);
                 end
 
-                V = max(V + ax*dt, 0);
-                S_ground = S_ground + V*dt;
+                Vn = max(V + ax*dt, 0);
+                S_ground = S_ground + 0.5*(V + Vn)*dt;
+                V = Vn;
                 t = t + dt;
 
                 if mod(round(t/dt), max(1,round(0.25/dt))) == 0
@@ -341,7 +342,8 @@ classdef LandingAnalysis < handle
                 gamma_vec(end+1,1) = 0;
                 theta_vec(end+1,1) = 0;
 
-                Vg = max(Vg + ax*dt, 0);
+                Vn = max(Vg + ax*dt, 0);
+                Vg = Vn;
                 t = t + dt;
 
                 if t > 600, break; end

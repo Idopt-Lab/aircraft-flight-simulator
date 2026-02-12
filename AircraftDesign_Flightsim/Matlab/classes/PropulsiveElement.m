@@ -367,46 +367,57 @@ classdef PropulsiveElement < handle
         end
 
         function [thrust, fuel_flow] = calculate_propeller_thrust(obj, V, rho)
-            if isempty(obj.propeller_params) || ~isfield(obj.propeller_params, 'diameter')
-                thrust = obj.throttle * obj.max_output;
-                fuel_flow = obj.throttle * obj.fuel_rate;
-                return;
-            end
+    if isempty(obj.propeller_params) || ~isfield(obj.propeller_params, 'diameter')
+        thrust = obj.throttle * obj.max_output;
+        fuel_flow = obj.throttle * obj.fuel_rate;
+        return
+    end
 
-            D = obj.propeller_params.diameter;
-            eta = obj.propeller_params.efficiency;
-            disk_loading = obj.propeller_params.disk_loading_factor;
-            induced_factor = obj.propeller_params.induced_velocity_factor;
+    if ~isfield(obj.propeller_params,'Ct_coeff') || numel(obj.propeller_params.Ct_coeff) < 2
+        obj.propeller_params.Ct_coeff = [0.10 -0.05];
+    end
+    if ~isfield(obj.propeller_params,'Cp_coeff') || numel(obj.propeller_params.Cp_coeff) < 2
+        obj.propeller_params.Cp_coeff = [0.05 0.02];
+    end
+    if ~isfield(obj.propeller_params,'eta_min'), obj.propeller_params.eta_min = 0.35; end
+    if ~isfield(obj.propeller_params,'eta_max'), obj.propeller_params.eta_max = 0.85; end
+    if ~isfield(obj.propeller_params,'power_lapse_exp'), obj.propeller_params.power_lapse_exp = 0.85; end
 
-            P_available = obj.throttle * obj.max_output;
+    D = obj.propeller_params.diameter;
 
-            n_rps_static = (P_available / (rho * D^5 * disk_loading))^(1/3);
+    alt = 0;
+    if isfield(obj.propeller_params,'last_altitude') && ~isempty(obj.propeller_params.last_altitude)
+        alt = obj.propeller_params.last_altitude;
+    end
+    [~,~,Pamb,~] = atmosisa(max(alt,0));
+    delta = Pamb / 101325;
 
-            v_induced = sqrt(P_available / (2 * rho * pi * (D/2)^2));
-            n_rps = n_rps_static * (1 - induced_factor * V / max(v_induced, 1));
-            n_rps = max(n_rps, 0.1);
+    P_avail = obj.throttle * obj.max_output * max(delta,0)^obj.propeller_params.power_lapse_exp;
 
-            J = V / max(n_rps * D, 1e-9);
+    if V < 0.5
+        V = 0.5;
+    end
 
-            Ct_coeff = obj.propeller_params.Ct_coeff;
-            Cp_coeff = obj.propeller_params.Cp_coeff;
+    disk_loading = obj.propeller_params.disk_loading_factor;
+    n_rps = (max(P_avail,0) / max(rho * D^5 * disk_loading, 1e-12))^(1/3);
+    n_rps = max(n_rps, 1e-3);
 
-            CT = Ct_coeff(1) + Ct_coeff(2) * J;
-            CP = Cp_coeff(1) + Cp_coeff(2) * J;
+    J = V / max(n_rps * D, 1e-9);
 
-            CT = max(CT, 0);
-            CP = max(CP, 0.001);
+    Ct = obj.propeller_params.Ct_coeff(1) + obj.propeller_params.Ct_coeff(2) * J;
+    Cp = obj.propeller_params.Cp_coeff(1) + obj.propeller_params.Cp_coeff(2) * J;
 
-            thrust = CT * rho * n_rps^2 * D^4;
-            P_required = CP * rho * n_rps^3 * D^5;
+    Ct = max(Ct, 0);
+    Cp = max(Cp, 1e-4);
 
-            if V > 1
-                thrust_max = eta * P_available / V;
-                thrust = min(thrust, thrust_max);
-            end
+    eta = (J * Ct) / Cp;
+    eta = max(obj.propeller_params.eta_min, min(obj.propeller_params.eta_max, eta));
 
-            fuel_flow = obj.throttle * obj.fuel_rate * min(P_required / max(P_available, 1), 1.2);
-        end
+    thrust = eta * max(P_avail,0) / V;
+
+    fuel_flow = obj.throttle * obj.fuel_rate;
+end
+
 
         function [thrust, fuel_flow] = calculate_rotor_thrust(obj, V, rho)
             if isempty(obj.rotor_params) || ~isfield(obj.rotor_params, 'diameter')

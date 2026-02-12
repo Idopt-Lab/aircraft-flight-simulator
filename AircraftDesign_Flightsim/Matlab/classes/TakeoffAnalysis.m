@@ -20,16 +20,26 @@ classdef TakeoffAnalysis < handle
 
             [rho, a] = obj.atmos(altitude_m);
             W = ac.mass.get_total_mass() * obj.g;
-            S = ac.geometry.wing_area;
+            Sref = ac.geometry.wing_area;
 
             p = obj.get_takeoff_params(altitude_m);
-            mu_roll = p.mu_rolling;
-            mu_brake = p.mu_braking;
-            SF = p.safety_factor;
 
-            CLmax = p.CLmax_takeoff;
-            Vs = sqrt(max(2*W/(rho*max(S,1e-9)*max(CLmax,1e-6)), 0));
+            if n_eng == 0
+                res = struct();
+                res.V_stall = NaN;
+                res.V1 = NaN;
+                res.VR = NaN;
+                res.V2 = NaN;
+                res.bfl_results = struct('BFL_m',inf,'V1_opt',NaN,'S_go',inf,'S_stop',inf);
+                TO_m = inf;
+                return
+            end
 
+            if p.CLmax_takeoff <= 0
+                error('TakeoffAnalysis:CLmax','CLmax_takeoff must be > 0');
+            end
+
+            Vs = sqrt(max(2*W/(rho*max(Sref,1e-9)*max(p.CLmax_takeoff,1e-6)), 0));
             VR = p.VR_to_Vs_ratio * Vs;
             V2 = p.V2_to_Vs_ratio * Vs;
 
@@ -39,22 +49,10 @@ classdef TakeoffAnalysis < handle
 
             slope = deg2rad(runway_slope_deg);
 
-            if n_eng == 0
-                res = struct();
-                res.V_stall = Vs;
-                res.V1 = NaN;
-                res.VR = VR;
-                res.V2 = V2;
-                res.bfl_results = struct('BFL_m',inf,'V1_opt',NaN,'S_go',inf,'S_stop',inf,'S_accel_all',inf,'S_accel_fail',inf,'S_brake',inf);
-                TO_m = inf;
-                return
-            end
-
-            fun = @(V1) obj.bfl_diff(V1, altitude_m, rho, a, W, S, slope, mu_roll, mu_brake, p, Vs, VR, V2);
+            fun = @(V1) obj.bfl_diff(V1, altitude_m, rho, a, W, Sref, slope, p, Vs, VR, V2);
             V1_opt = obj.find_root_scan(fun, V1_low, V1_high, V1_guess);
 
             [diff_opt, out_opt] = fun(V1_opt);
-
             BFL = max(out_opt.S_go, out_opt.S_stop);
 
             res = struct();
@@ -75,6 +73,7 @@ classdef TakeoffAnalysis < handle
             bfl.S_reaction = out_opt.S_reaction;
             bfl.S_brake = out_opt.S_brake;
             bfl.diff_go_minus_stop = diff_opt;
+
             res.bfl_results = bfl;
 
             TO_m = BFL;
@@ -116,7 +115,6 @@ classdef TakeoffAnalysis < handle
 
         function p = fill_defaults_takeoff(~, p)
             d = struct( ...
-                'mu_ground',0.02, ...
                 'mu_rolling',0.02, ...
                 'mu_braking',0.40, ...
                 'safety_factor',1.15, ...
@@ -132,8 +130,8 @@ classdef TakeoffAnalysis < handle
                 'initial_climb_angle_deg',8, ...
                 'reaction_time_s',1.0, ...
                 'continue_time_after_VR_s',2.0, ...
-                'min_accel_mps2',0.5, ...
-                'min_reduced_accel_mps2',0.3, ...
+                'min_accel_mps2',0.2, ...
+                'min_reduced_accel_mps2',0.1, ...
                 'min_brake_decel_mps2',1.0 ...
             );
 
@@ -144,22 +142,24 @@ classdef TakeoffAnalysis < handle
                     p.(f) = d.(f);
                 end
             end
+
+            p.mu_rolling = max(p.mu_rolling,0);
+            p.mu_braking = max(p.mu_braking,0);
+            p.safety_factor = max(p.safety_factor,1.0);
         end
 
         function C = safe_aero_lookup(obj, x, u)
             ac = obj.aircraft;
-
             if isprop(ac,'aero') && ~isempty(ac.aero)
                 if isprop(ac.aero,'coeff_lookup') && ~isempty(ac.aero.coeff_lookup)
                     C = ac.aero.coeff_lookup(x, u, ac.geometry);
                     return
                 end
             end
-
             C = struct();
         end
 
-        function [diff, out] = bfl_diff(obj, V1, alt_m, rho, a, W, S, slope, mu_roll, mu_brake, p, Vs, VR, V2)
+        function [diff, out] = bfl_diff(obj, V1, alt_m, rho, a, W, Sref, slope, p, Vs, VR, V2)
             V1 = max(min(V1, 0.999*VR), 0.1);
 
             alpha0 = 0;
@@ -171,28 +171,28 @@ classdef TakeoffAnalysis < handle
             K   = p.K_takeoff;
             CLalpha = p.CLalpha_takeoff;
 
-            [S1, ~, ~] = obj.ground_to_speed(V1, alt_m, rho, a, W, S, slope, mu_roll, CD0, K, CLalpha, alpha0, 1.0, true);
+            [S_accel_all, ~, ~] = obj.ground_to_speed(0, V1, alt_m, rho, a, W, Sref, slope, p.mu_rolling, CD0, K, CLalpha, alpha0, 1.0, true, p.min_accel_mps2);
 
-            [S2, ~, ~] = obj.ground_to_speed(VR, alt_m, rho, a, W, S, slope, mu_roll, CD0, K, CLalpha, alpha0, 1.0, false);
+            [S_accel_fail, ~, ~] = obj.ground_to_speed(V1, VR, alt_m, rho, a, W, Sref, slope, p.mu_rolling, CD0, K, CLalpha, alpha0, 1.0, false, p.min_reduced_accel_mps2);
 
-            [Srot, Vlo] = obj.rotate_and_liftoff(VR, alt_m, rho, a, W, S, slope, mu_roll, CD0, K, CLalpha, alpha_rot, false, p);
+            [Srot, Vlo] = obj.rotate_and_liftoff(VR, alt_m, rho, a, W, Sref, slope, p.mu_rolling, CD0, K, CLalpha, alpha_rot, false, p);
 
             Sair = obj.air_to_screen(h_screen, gamma_climb);
 
-            S_go = S1 + S2 + Srot + Sair;
+            S_go = S_accel_all + S_accel_fail + Srot + Sair;
 
             Sreact = obj.reaction_distance(V1, p.reaction_time_s);
-            Sbrake = obj.brake_distance(V1, alt_m, rho, a, W, S, slope, mu_brake, CD0, K, CLalpha, alpha0, p);
+            Sbrake = obj.brake_distance(V1, alt_m, rho, a, W, Sref, slope, p.mu_braking, CD0, K, CLalpha, alpha0, p);
 
-            S_stop = S1 + Sreact + Sbrake;
+            S_stop = S_accel_all + Sreact + Sbrake;
 
             diff = S_go - S_stop;
 
             out = struct();
             out.S_go = S_go;
             out.S_stop = S_stop;
-            out.S_accel_all = S1;
-            out.S_accel_fail = S2;
+            out.S_accel_all = S_accel_all;
+            out.S_accel_fail = S_accel_fail;
             out.S_rotate = Srot;
             out.S_air = Sair;
             out.S_reaction = Sreact;
@@ -203,20 +203,20 @@ classdef TakeoffAnalysis < handle
             out.V2 = V2;
         end
 
-        function [S, t, a_last] = ground_to_speed(obj, Vtgt, alt_m, rho, a, W, Sref, slope, mu, CD0, K, CLalpha, alpha, throttle, all_engines)
+        function [S, t, a_last] = ground_to_speed(obj, V0, Vtgt, alt_m, rho, a, W, Sref, slope, mu, CD0, K, CLalpha, alpha, throttle, all_engines, a_floor)
             dt = obj.dt;
-            V = 0;
+            V = max(V0, 0);
             S = 0;
             t = 0;
             a_last = 0;
 
-            Vtgt = max(Vtgt, 0.1);
+            Vtgt = max(Vtgt, V0 + 1e-6);
 
             while V < Vtgt
                 q = 0.5*rho*V^2;
 
                 CL = min(max(CLalpha*alpha, 0), 10);
-                CD = CD0 + K*CL^2;
+                CD = max(CD0 + K*CL^2, 0);
 
                 L = q*Sref*CL;
                 D = q*Sref*CD;
@@ -232,15 +232,13 @@ classdef TakeoffAnalysis < handle
 
                 m = W/obj.g;
                 ax = Fnet / max(m,1e-9);
+                ax = max(ax, a_floor);
 
-                ax = max(ax, 0);
-                a_last = ax;
-
-                V = V + ax*dt;
-                V = max(V, 0);
-
-                S = S + V*dt;
+                Vn = max(V + ax*dt, 0);
+                S = S + 0.5*(V + Vn)*dt;
+                V = Vn;
                 t = t + dt;
+                a_last = ax;
 
                 if t > 600
                     S = inf;
@@ -251,7 +249,7 @@ classdef TakeoffAnalysis < handle
 
         function [Srot, Vlo] = rotate_and_liftoff(obj, VR, alt_m, rho, a, W, Sref, slope, mu, CD0, K, CLalpha, alpha_rot, all_engines, p)
             dt = obj.dt;
-            V = VR;
+            V = max(VR, 0.1);
             Srot = 0;
 
             alpha = 0;
@@ -264,7 +262,7 @@ classdef TakeoffAnalysis < handle
                 qdyn = 0.5*rho*V^2;
 
                 CL = min(max(CLalpha*alpha, 0), p.CLmax_takeoff);
-                CD = CD0 + K*CL^2;
+                CD = max(CD0 + K*CL^2, 0);
 
                 L = qdyn*Sref*CL;
                 D = qdyn*Sref*CD;
@@ -285,10 +283,11 @@ classdef TakeoffAnalysis < handle
                 ax = Fnet / max(m,1e-9);
                 ax = max(ax, 0);
 
-                V = V + ax*dt;
-                Srot = Srot + V*dt;
+                Vn = max(V + ax*dt, 0);
+                Srot = Srot + 0.5*(V + Vn)*dt;
+                V = Vn;
 
-                if Srot > 5000
+                if Srot > 8000
                     Srot = inf;
                     break
                 end
@@ -299,24 +298,24 @@ classdef TakeoffAnalysis < handle
 
         function Sair = air_to_screen(~, h_screen, gamma_climb)
             gamma_climb = max(gamma_climb, deg2rad(1));
-            Sair = max(h_screen / tan(gamma_climb), 0);
+            Sair = max(h_screen / max(tan(gamma_climb),1e-9), 0);
         end
 
         function Sreact = reaction_distance(~, V1, t_react)
             t_react = max(t_react, 0);
-            Sreact = V1 * t_react;
+            Sreact = max(V1,0) * t_react;
         end
 
         function Sbrake = brake_distance(obj, V1, alt_m, rho, a, W, Sref, slope, mu_brake, CD0, K, CLalpha, alpha, p)
             dt = obj.dt;
-            V = V1;
+            V = max(V1, 0);
             Sbrake = 0;
 
             while V > 0.1
                 q = 0.5*rho*V^2;
 
                 CL = min(max(CLalpha*alpha, 0), p.CLmax_takeoff);
-                CD = CD0 + K*CL^2;
+                CD = max(CD0 + K*CL^2, 0);
 
                 L = q*Sref*CL;
                 D = q*Sref*CD;
@@ -330,15 +329,13 @@ classdef TakeoffAnalysis < handle
 
                 m = W/obj.g;
                 ax = Fnet / max(m,1e-9);
-
                 ax = min(ax, -max(p.min_brake_decel_mps2, 0.1));
 
-                V = V + ax*dt;
-                V = max(V, 0);
+                Vn = max(V + ax*dt, 0);
+                Sbrake = Sbrake + 0.5*(V + Vn)*dt;
+                V = Vn;
 
-                Sbrake = Sbrake + V*dt;
-
-                if Sbrake > 8000
+                if Sbrake > 12000
                     Sbrake = inf;
                     return
                 end
@@ -377,7 +374,7 @@ classdef TakeoffAnalysis < handle
             V1_low = max(V1_low, 0.1);
             V1_high = max(V1_high, V1_low + 0.5);
 
-            N = 25;
+            N = 31;
             xs = linspace(V1_low, V1_high, N);
             ys = zeros(size(xs));
             for i = 1:N
@@ -388,7 +385,7 @@ classdef TakeoffAnalysis < handle
             if ~isempty(idx)
                 a = xs(idx);
                 b = xs(idx+1);
-                V1_opt = obj.bisect(fun, a, b, 1e-3, 40);
+                V1_opt = obj.bisect(fun, a, b, 1e-3, 50);
                 return
             end
 

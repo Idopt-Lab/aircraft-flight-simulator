@@ -88,10 +88,8 @@ classdef GenericTrimSolver < handle
                     'ConstraintTolerance',1e-16,'Algorithm','sqp','FiniteDifferenceStepSize',1e-10);
                 try
                     z_star = fmincon(cost, z0, [], [], [], [], lb, ub, [], opts);
-                    
                     residual_check = norm(fun(z_star));
                     if residual_check > 1e-6
-                        fprintf('First attempt residual: %.6e, refining...\n', residual_check);
                         opts.FiniteDifferenceStepSize = 1e-12;
                         z_star = fmincon(cost, z_star, [], [], [], [], lb, ub, [], opts);
                     end
@@ -188,7 +186,40 @@ classdef GenericTrimSolver < handle
 
             ac.sync_control_vector_from_components();
 
-            [F_total, M_total, ~] = ac.calculate_total_forces_moments_with_gravity();
+            m = ac.mass.get_total_mass();
+            g = 9.80665;
+
+            phi_s   = x(7);
+            theta_s = x(8);
+            Fg = m*g*[-sin(theta_s); sin(phi_s)*cos(theta_s); cos(phi_s)*cos(theta_s)];
+
+            F_ext = zeros(3,1);
+            M_ext = zeros(3,1);
+            ff = [];
+
+            ext_ok = true;
+            ext_err = '';
+            try
+                [F_ext, M_ext, ff] = ac.calculate_external_forces_moments();
+                if isempty(F_ext) || isempty(M_ext) || numel(F_ext) ~= 3 || numel(M_ext) ~= 3
+                    ext_ok = false;
+                    ext_err = 'calculate_external_forces_moments returned empty/invalid size';
+                    F_ext = zeros(3,1);
+                    M_ext = zeros(3,1);
+                else
+                    F_ext = F_ext(:);
+                    M_ext = M_ext(:);
+                end
+            catch ME
+                ext_ok = false;
+                ext_err = ME.message;
+                F_ext = zeros(3,1);
+                M_ext = zeros(3,1);
+                ff = [];
+            end
+
+            F_total = F_ext + Fg;
+            M_total = M_ext;
 
             u_full = zeros(n_cs+n_pe,1);
             for i = 1:n_cs, u_full(i) = ac.control_surfaces(i).deflection; end
@@ -197,8 +228,7 @@ classdef GenericTrimSolver < handle
             tol = obj.trim_tolerance;
             if isempty(tol) || tol <= 0, tol = 1e-6; end
 
-            m = ac.mass.get_total_mass();
-            W = m * 9.80665;
+            W = m * g;
 
             force_tol  = W * tol;
             moment_tol = W * ac.geometry.mean_aerodynamic_chord * tol;
@@ -206,7 +236,7 @@ classdef GenericTrimSolver < handle
             force_converged  = (abs(F_total(1)) < force_tol)  && (abs(F_total(2)) < force_tol)  && (abs(F_total(3)) < force_tol);
             moment_converged = (abs(M_total(1)) < moment_tol) && (abs(M_total(2)) < moment_tol) && (abs(M_total(3)) < moment_tol);
 
-            converged = force_converged && moment_converged;
+            converged = ext_ok && force_converged && moment_converged;
 
             x_trim = x;
             u_trim = u_full;
@@ -224,12 +254,18 @@ classdef GenericTrimSolver < handle
             info.throttle_trim = thr;
             info.F_total = F_total;
             info.M_total = M_total;
+            info.F_ext = F_ext;
+            info.M_ext = M_ext;
+            info.Fg = Fg;
+            info.ff = ff;
             info.residual = r_star;
             info.residual_norm = norm(r_star);
             info.force_residual_norm = norm(F_total);
             info.moment_residual_norm = norm(M_total);
             info.altitude = altitude;
             info.velocity = velocity;
+            info.external_ok = ext_ok;
+            info.external_error = ext_err;
 
             obj.trim_state = x_trim;
             obj.trim_controls = u_trim;
@@ -353,6 +389,8 @@ classdef GenericTrimSolver < handle
             s.altitude_m = -x(3);
             if isfield(obj.trim_results,'F_total'), s.F_total = obj.trim_results.F_total; else, s.F_total = []; end
             if isfield(obj.trim_results,'M_total'), s.M_total = obj.trim_results.M_total; else, s.M_total = []; end
+            if isfield(obj.trim_results,'external_ok'), s.external_ok = obj.trim_results.external_ok; else, s.external_ok = []; end
+            if isfield(obj.trim_results,'external_error'), s.external_error = obj.trim_results.external_error; else, s.external_error = ''; end
             ac = obj.aircraft;
             cs = struct('name',{},'deflection',{},'deflection_deg',{});
             for i = 1:numel(ac.control_surfaces)
@@ -378,6 +416,9 @@ classdef GenericTrimSolver < handle
             fprintf('\n=== TRIM SUMMARY ===\n');
             if isempty(s.residual_norm), s.residual_norm = NaN; end
             fprintf('Converged: %d\n', s.converged);
+            if isfield(s,'external_ok') && ~isempty(s.external_ok) && ~s.external_ok
+                fprintf('External forces/moments: FAILED (%s)\n', string(s.external_error));
+            end
             if isfield(s,'force_residual_norm') && ~isempty(s.force_residual_norm)
                 fprintf('Force residual: %.3e N Moment residual: %.3e N-m\n', s.force_residual_norm, s.moment_residual_norm);
             else
@@ -401,13 +442,17 @@ function r = trim_residual_symmetric(z, ac, altitude, V, gamma, pitch_idx)
 alpha  = z(1);
 dPitch = z(2);
 thr    = max(0.01, min(1, z(3)));
+
 theta = alpha + gamma;
 ca = cos(alpha); sa = sin(alpha);
+
 u = V * ca;
 v = 0;
 w = V * sa;
+
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
+
 x = zeros(12,1);
 x(3) = -altitude;
 x(4) = u;
@@ -416,7 +461,9 @@ x(6) = w;
 x(7) = 0;
 x(8) = theta;
 x(9:12) = 0;
+
 ac.state.set_full_state(x);
+
 for i = 1:n_cs
     if ismember(i,pitch_idx)
         ac.control_surfaces(i).set_deflection(clamp_def(ac.control_surfaces(i), dPitch));
@@ -424,15 +471,39 @@ for i = 1:n_cs
         ac.control_surfaces(i).set_deflection(0);
     end
 end
+
 if n_pe > 0
     for k = 1:n_pe
         ac.propulsive_elements{k}.set_throttle(thr);
     end
 end
+
 ac.sync_control_vector_from_components();
-[F_total, M_total, ~] = ac.calculate_total_forces_moments_with_gravity();
+
+try
+    [F_ext, M_ext, ~] = ac.calculate_external_forces_moments();
+    if isempty(F_ext) || isempty(M_ext) || numel(F_ext) ~= 3 || numel(M_ext) ~= 3
+        r = 1e3 * ones(3,1);
+        return
+    end
+    F_ext = F_ext(:);
+    M_ext = M_ext(:);
+catch
+    r = 1e3 * ones(3,1);
+    return
+end
+
 m = ac.mass.get_total_mass();
-W = m * 9.80665;
+g = 9.80665;
+
+phi_s = x(7);
+theta_s = x(8);
+Fg = m*g*[-sin(theta_s); sin(phi_s)*cos(theta_s); cos(phi_s)*cos(theta_s)];
+
+F_total = F_ext + Fg;
+M_total = M_ext;
+
+W = m * g;
 r = [F_total(1)/W; F_total(3)/W; M_total(2)/(W * ac.geometry.mean_aerodynamic_chord)];
 end
 
@@ -443,14 +514,19 @@ dPitch = z(3);
 dRoll  = z(4);
 dYaw   = z(5);
 thr    = max(0.01, min(1, z(6)));
+
 theta = alpha + gamma;
+
 ca = cos(alpha); sa = sin(alpha);
 cb = cos(beta);  sb = sin(beta);
+
 u = V * ca * cb;
 v = V * sb;
 w = V * sa * cb;
+
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
+
 x = zeros(12,1);
 x(3) = -altitude;
 x(4) = u;
@@ -458,6 +534,7 @@ x(5) = v;
 x(6) = w;
 x(7) = phi;
 x(8) = theta;
+
 if abs(turn_rate) > 1e-9
     cp = cos(phi); sp = sin(phi);
     x(10) = 0;
@@ -466,7 +543,9 @@ if abs(turn_rate) > 1e-9
 else
     x(10:12) = 0;
 end
+
 ac.state.set_full_state(x);
+
 for i = 1:n_cs
     if ismember(i,pitch_idx)
         ac.control_surfaces(i).set_deflection(clamp_def(ac.control_surfaces(i), dPitch));
@@ -478,17 +557,42 @@ for i = 1:n_cs
         ac.control_surfaces(i).set_deflection(0);
     end
 end
+
 if n_pe > 0
     for k = 1:n_pe
         ac.propulsive_elements{k}.set_throttle(thr);
     end
 end
+
 ac.sync_control_vector_from_components();
-[F_total, M_total, ~] = ac.calculate_total_forces_moments_with_gravity();
+
+try
+    [F_ext, M_ext, ~] = ac.calculate_external_forces_moments();
+    if isempty(F_ext) || isempty(M_ext) || numel(F_ext) ~= 3 || numel(M_ext) ~= 3
+        r = 1e3 * ones(6,1);
+        return
+    end
+    F_ext = F_ext(:);
+    M_ext = M_ext(:);
+catch
+    r = 1e3 * ones(6,1);
+    return
+end
+
 m = ac.mass.get_total_mass();
-W = m * 9.80665;
+g = 9.80665;
+
+phi_s = x(7);
+theta_s = x(8);
+Fg = m*g*[-sin(theta_s); sin(phi_s)*cos(theta_s); cos(phi_s)*cos(theta_s)];
+
+F_total = F_ext + Fg;
+M_total = M_ext;
+
+W = m * g;
 b = ac.geometry.wing_span;
 c = ac.geometry.mean_aerodynamic_chord;
+
 r = [F_total(1)/W; F_total(2)/W; F_total(3)/W; M_total(1)/(W * b); M_total(2)/(W * c); M_total(3)/(W * b)];
 end
 

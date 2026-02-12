@@ -41,7 +41,7 @@ block.RegBlockMethod('Outputs', @Outputs);
 end
 
 function Start(block)
-persistent ac autopilot n_total n_cs n_pe
+persistent ac n_total n_cs n_pe
 
 if isempty(ac)
     if evalin('base','exist(''ac'',''var'')')
@@ -50,38 +50,36 @@ if isempty(ac)
         error('aircraft_sfunc_generalized:NoAircraft','ac not found');
     end
 
-    if evalin('base','exist(''autopilot'',''var'')')
-        autopilot = evalin('base','autopilot');
-    else
-        autopilot = [];
-    end
-
     n_cs = numel(ac.control_surfaces);
     n_pe = numel(ac.propulsive_elements);
     n_total = n_cs + n_pe;
 
     assignin('base','n_total',n_total);
+    assignin('base','n_cs',n_cs);
+    assignin('base','n_pe',n_pe);
 end
 
 assignin('base','ac_sfunc',ac);
-assignin('base','autopilot_sfunc',autopilot);
 assignin('base','n_total_sfunc',n_total);
 assignin('base','n_cs_sfunc',n_cs);
 assignin('base','n_pe_sfunc',n_pe);
 end
 
 function Outputs(block)
-persistent ac autopilot n_total n_cs n_pe last_t last_u ap_prev_enabled
+persistent ac autopilot n_total n_cs n_pe last_t last_u ap_initialized
 
 if isempty(last_t), last_t = block.CurrentTime; end
-if isempty(ap_prev_enabled), ap_prev_enabled = false; end
+if isempty(ap_initialized), ap_initialized = false; end
 
 if isempty(ac)
     ac = evalin('base','ac_sfunc');
-    autopilot = [];
-    if evalin('base','exist(''autopilot_sfunc'',''var'')')
-        autopilot = evalin('base','autopilot_sfunc');
+    
+    if evalin('base','exist(''autopilot'',''var'')')
+        autopilot = evalin('base','autopilot');
+    else
+        autopilot = [];
     end
+    
     n_total = evalin('base','n_total_sfunc');
     n_cs    = evalin('base','n_cs_sfunc');
     n_pe    = evalin('base','n_pe_sfunc');
@@ -122,43 +120,64 @@ ap_md = "off";
 ap_t_on = 0;
 ap_min_alt = 0;
 
-if evalin('base','exist(''autopilot_enabled'',''var'')'), ap_en = double(evalin('base','autopilot_enabled')); end
-if evalin('base','exist(''autopilot_mode'',''var'')'), ap_md = string(evalin('base','autopilot_mode')); end
-if evalin('base','exist(''autopilot_enable_time'',''var'')'), ap_t_on = double(evalin('base','autopilot_enable_time')); end
-if evalin('base','exist(''autopilot_min_alt'',''var'')'), ap_min_alt = double(evalin('base','autopilot_min_alt')); end
+if evalin('base','exist(''autopilot_enabled'',''var'')')
+    ap_en = double(evalin('base','autopilot_enabled'));
+end
+if evalin('base','exist(''autopilot_mode'',''var'')')
+    ap_md = string(evalin('base','autopilot_mode'));
+end
+if evalin('base','exist(''autopilot_enable_time'',''var'')')
+    ap_t_on = double(evalin('base','autopilot_enable_time'));
+end
+if evalin('base','exist(''autopilot_min_alt'',''var'')')
+    ap_min_alt = double(evalin('base','autopilot_min_alt'));
+end
 
 ap_active = logical(ap_en) && (t >= ap_t_on) && (altitude >= ap_min_alt) && (ap_md ~= "off");
 
 u_cmd = u_in;
 
-if ~isempty(autopilot) && isobject(autopilot) && isprop(autopilot,'enabled') && isprop(autopilot,'mode')
+if ap_active && ~isempty(autopilot) && isobject(autopilot) && isvalid(autopilot)
     autopilot.mode = ap_md;
     autopilot.enabled = ap_active;
-
-    if autopilot.enabled && autopilot.mode ~= "off"
-        if evalin('base','exist(''mission'',''var'')')
-            mission = evalin('base','mission');
-            t_m = min(max(t, 0), mission.total_duration);
-            autopilot.target_altitude = interp1(mission.time_vector, mission.altitude_profile, t_m, 'linear', 'extrap');
-            autopilot.target_speed = interp1(mission.time_vector, mission.velocity_profile, t_m, 'linear', 'extrap');
-        end
-
-        if ~ap_prev_enabled
-            try
-                autopilot.initialize_from_state(x, u_in);
-            catch
-            end
-        end
-
+    
+    if evalin('base','exist(''mission'',''var'')')
+        mission = evalin('base','mission');
+        t_m = min(max(t, 0), mission.total_duration);
+        
         try
-            u_cmd = autopilot.compute_control(x, u_in, dt);
-        catch
-            u_cmd = u_in;
+            if numel(unique(mission.time_vector)) == numel(mission.time_vector)
+                autopilot.target_altitude = interp1(mission.time_vector, mission.altitude_profile, t_m, 'linear', 'extrap');
+                autopilot.target_speed = interp1(mission.time_vector, mission.velocity_profile, t_m, 'linear', 'extrap');
+            else
+                [time_unique, idx_unique] = unique(mission.time_vector, 'stable');
+                autopilot.target_altitude = interp1(time_unique, mission.altitude_profile(idx_unique), t_m, 'linear', 'extrap');
+                autopilot.target_speed = interp1(time_unique, mission.velocity_profile(idx_unique), t_m, 'linear', 'extrap');
+            end
+        catch ME
+            warning('Autopilot:InterpError', 'Interpolation failed: %s', ME.message);
         end
     end
+    
+    if ~ap_initialized
+        try
+            autopilot.initialize_from_state(x);
+            ap_initialized = true;
+            fprintf('[t=%.2f] Autopilot initialized: h_target=%.0fm, V_target=%.1fm/s\n', ...
+                t, autopilot.target_altitude, autopilot.target_speed);
+        catch ME
+            warning('Autopilot:InitError', 'Initialization failed: %s', ME.message);
+        end
+    end
+    
+    try
+        [u_cmd, dbg] = autopilot.compute_control(x, u_in, dt);
+        assignin('base','ap_dbg',dbg);
+    catch ME
+        warning('Autopilot:ControlError', 'Control computation failed: %s', ME.message);
+        u_cmd = u_in;
+    end
 end
-
-ap_prev_enabled = ap_active;
 
 u_out = u_cmd;
 
@@ -194,7 +213,7 @@ last_u = u_out;
 ac.state.set_full_state(x);
 ac.set_controls_from_vector(u_out);
 
-[F_aero, M_total, fuel_flow] = ac.calculate_external_forces_moments();
+[F_ext, M_ext, fuel_flow] = ac.calculate_external_forces_moments();
 
 m = ac.mass.get_total_mass();
 g = 9.80665;
@@ -202,7 +221,7 @@ phi = x(7);
 theta = x(8);
 
 F_gravity_body = m * g * [-sin(theta); sin(phi)*cos(theta); cos(phi)*cos(theta)];
-F_total = F_aero + F_gravity_body;
+F_total = F_ext + F_gravity_body;
 
 phi = x(7); th = x(8); ps = x(9);
 cph = cos(phi); sph = sin(phi);
@@ -233,7 +252,7 @@ I_mat = ac.mass.get_inertia_matrix();
 I_dot = zeros(3,3);
 
 block.OutputPort(1).Data = F_total(:);
-block.OutputPort(2).Data = M_total(:);
+block.OutputPort(2).Data = M_ext(:);
 block.OutputPort(3).Data = -fuel_flow;
 block.OutputPort(4).Data = m;
 block.OutputPort(5).Data = I_dot;
