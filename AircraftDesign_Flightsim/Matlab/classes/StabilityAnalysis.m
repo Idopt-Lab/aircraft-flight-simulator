@@ -219,65 +219,93 @@ classdef StabilityAnalysis < handle
         end
 
         function classify_aircraft_modes(obj)
-            obj.longitudinal_modes = [];
-            obj.lateral_modes = [];
-            obj.phugoid = [];
-            obj.short_period = [];
-            obj.dutch_roll = [];
-            obj.roll_subsidence = [];
-            obj.spiral = [];
+obj.longitudinal_modes = [];
+obj.lateral_modes = [];
+obj.phugoid = [];
+obj.short_period = [];
+obj.dutch_roll = [];
+obj.roll_subsidence = [];
+obj.spiral = [];
 
-            if isempty(obj.eigenvalues) || isempty(obj.eigenvectors), return; end
+if isempty(obj.eigenvalues) || isempty(obj.eigenvectors), return; end
 
-            for i = 1:numel(obj.eigenvalues)
-                lambda = obj.eigenvalues(i);
-                vec = obj.eigenvectors(:,i);
+iu = 4;  iv = 5;  iw = 6;
+iphi = 7; itheta = 8; ipsi = 9;
+ip = 10; iq = 11; ir = 12;
 
-                if abs(real(lambda)) < 1e-12 && abs(imag(lambda)) < 1e-12, continue; end
+long_idx = [iu iw itheta iq];
+lat_idx  = [iv iphi ip ir];
 
-                u_comp = abs(vec(4));
-                v_comp = abs(vec(5));
-                w_comp = abs(vec(6));
-                phi_comp = abs(vec(7));
-                theta_comp = abs(vec(8));
-                p_comp = abs(vec(10));
-                q_comp = abs(vec(11));
-                r_comp = abs(vec(12));
+for i = 1:numel(obj.eigenvalues)
+    lambda = obj.eigenvalues(i);
+    vec = obj.eigenvectors(:,i);
 
-                long_energy = u_comp + w_comp + theta_comp + q_comp;
-                lat_energy  = v_comp + phi_comp + p_comp + r_comp;
+    if ~isfinite(real(lambda)) || ~isfinite(imag(lambda)), continue; end
+    if abs(real(lambda)) < 1e-12 && abs(imag(lambda)) < 1e-12, continue; end
 
-                if abs(imag(lambda)) > 1e-8
-                    period = 2*pi / max(abs(imag(lambda)), 1e-12);
-                    zeta = -real(lambda) / max(abs(lambda), 1e-12);
+    vlong = vec(long_idx);
+    vlat  = vec(lat_idx);
 
-                    if long_energy >= lat_energy
-                        if period > 25
-                            obj.phugoid = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
-                            obj.longitudinal_modes = [obj.longitudinal_modes i];
-                        elseif period < 10
-                            obj.short_period = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
-                            obj.longitudinal_modes = [obj.longitudinal_modes i];
-                        end
-                    else
-                        if period > 2 && period < 20
-                            obj.dutch_roll = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
-                            obj.lateral_modes = [obj.lateral_modes i];
-                        end
-                    end
-                else
-                    if p_comp > max(phi_comp,1e-12) && p_comp > 0.05 && abs(real(lambda)) > 0.2
-                        obj.roll_subsidence = struct('index', i, 'lambda', lambda, 'time_constant', 1/max(abs(real(lambda)),1e-12));
-                        obj.lateral_modes = [obj.lateral_modes i];
-                    end
+    s_long = max(abs(vlong));
+    s_lat  = max(abs(vlat));
+    s = max([s_long s_lat max(abs(vec([ipsi])))]);
 
-                    if lat_energy > long_energy && abs(real(lambda)) > 1e-6 && abs(real(lambda)) < 0.5
-                        obj.spiral = struct('index', i, 'lambda', lambda, 'time_constant', 1/max(abs(real(lambda)),1e-12), 'stable', real(lambda) < 0);
-                        obj.lateral_modes = [obj.lateral_modes i];
-                    end
-                end
+    if s < 1e-12
+        continue
+    end
+
+    vecn = vec / s;
+
+    u_comp     = abs(vecn(iu));
+    v_comp     = abs(vecn(iv));
+    w_comp     = abs(vecn(iw));
+    phi_comp   = abs(vecn(iphi));
+    theta_comp = abs(vecn(itheta));
+    p_comp     = abs(vecn(ip));
+    q_comp     = abs(vecn(iq));
+    r_comp     = abs(vecn(ir));
+
+    long_energy = u_comp + w_comp + theta_comp + q_comp;
+    lat_energy  = v_comp + phi_comp + p_comp + r_comp;
+
+    if abs(imag(lambda)) > 1e-8
+        wn = abs(lambda);
+        zeta = -real(lambda) / max(wn, 1e-12);
+        period = 2*pi / max(abs(imag(lambda)), 1e-12);
+
+        if long_energy >= lat_energy
+            if period >= 12
+                obj.phugoid = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
+                obj.longitudinal_modes = unique([obj.longitudinal_modes i]);
+            else
+                obj.short_period = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
+                obj.longitudinal_modes = unique([obj.longitudinal_modes i]);
+            end
+        else
+            if period >= 1 && period <= 25
+                obj.dutch_roll = struct('index', i, 'lambda', lambda, 'period', period, 'damping', zeta);
+                obj.lateral_modes = unique([obj.lateral_modes i]);
             end
         end
+
+    else
+        sig = real(lambda);
+
+        if lat_energy > long_energy
+            if p_comp >= max(phi_comp,1e-12) && abs(sig) > 0.15
+                obj.roll_subsidence = struct('index', i, 'lambda', lambda, 'time_constant', 1/max(abs(sig),1e-12));
+                obj.lateral_modes = unique([obj.lateral_modes i]);
+            elseif abs(sig) > 1e-6 && abs(sig) < 0.5
+                obj.spiral = struct('index', i, 'lambda', lambda, 'time_constant', 1/max(abs(sig),1e-12), 'stable', sig < 0);
+                obj.lateral_modes = unique([obj.lateral_modes i]);
+            end
+        else
+            obj.longitudinal_modes = unique([obj.longitudinal_modes i]);
+        end
+    end
+end
+end
+
 
         function s = get_modes_summary(obj)
             s = struct();
