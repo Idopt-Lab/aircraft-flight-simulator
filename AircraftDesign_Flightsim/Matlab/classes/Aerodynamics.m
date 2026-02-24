@@ -81,7 +81,7 @@ classdef Aerodynamics < handle
                 cbar = S / max(b, 1e-9);
             end
             
-            coeff_base = obj.coeff_lookup(x, zeros(size(u)), geom);
+            coeff_base = obj.coeff_lookup(x, u, geom);
             
             CL_inst = coeff_base.CL;
             CD_inst = coeff_base.CD;
@@ -175,60 +175,40 @@ classdef Aerodynamics < handle
                 error('Aerodynamics:InvalidDATCOM', 'Cannot find alpha data in DATCOM structure');
             end
             
-            if isfield(dc, 'cl')
-                cl_data = dc.cl;
-            elseif isfield(dc, 'CL')
-                cl_data = dc.CL;
-            else
-                cl_data = 5.0 * alpha_data * pi/180;
+            if isfield(dc, 'cl'), cl_data = dc.cl;
+            elseif isfield(dc, 'CL'), cl_data = dc.CL;
+            else, cl_data = 5.0 * alpha_data * pi/180;
             end
             
-            if isfield(dc, 'cd')
-                cd_data = dc.cd;
-            elseif isfield(dc, 'CD')
-                cd_data = dc.CD;
-            else
-                cd_data = 0.02 + 0.05 * cl_data.^2;
+            if isfield(dc, 'cd'), cd_data = dc.cd;
+            elseif isfield(dc, 'CD'), cd_data = dc.CD;
+            else, cd_data = 0.02 + 0.05 * cl_data.^2;
             end
             
-            if isfield(dc, 'cm')
-                cm_data = dc.cm;
-            elseif isfield(dc, 'CM')
-                cm_data = dc.CM;
-            elseif isfield(dc, 'Cm')
-                cm_data = dc.Cm;
-            else
-                cm_data = -0.05 * ones(size(alpha_data));
+            if isfield(dc, 'cm'), cm_data = dc.cm;
+            elseif isfield(dc, 'CM'), cm_data = dc.CM;
+            elseif isfield(dc, 'Cm'), cm_data = dc.Cm;
+            else, cm_data = -0.05 * ones(size(alpha_data));
             end
             
             CL = interp1(alpha_data, cl_data, alpha_deg, 'linear', 'extrap');
             CD = interp1(alpha_data, cd_data, alpha_deg, 'linear', 'extrap');
             Cm = interp1(alpha_data, cm_data, alpha_deg, 'linear', 'extrap');
             
-            if isfield(dc, 'cyb')
-                CYB = dc.cyb;
-            elseif isfield(dc, 'CYB')
-                CYB = dc.CYB;
-            else
-                CYB = -0.3;
+            if isfield(dc, 'cyb'), CYB = dc.cyb;
+            elseif isfield(dc, 'CYB'), CYB = dc.CYB;
+            else, CYB = -0.3;
             end
             
-            if isfield(dc, 'clb')
-                CLB = dc.clb;
-            elseif isfield(dc, 'CLB')
-                CLB = dc.CLB;
-            elseif isfield(dc, 'Clb')
-                CLB = dc.Clb;
-            else
-                CLB = -0.19;
+            if isfield(dc, 'clb'), CLB = dc.clb;
+            elseif isfield(dc, 'CLB'), CLB = dc.CLB;
+            elseif isfield(dc, 'Clb'), CLB = dc.Clb;
+            else, CLB = -0.19;
             end
             
-            if isfield(dc, 'cnb')
-                CNB = dc.cnb;
-            elseif isfield(dc, 'CNB')
-                CNB = dc.CNB;
-            else
-                CNB = 0.02;
+            if isfield(dc, 'cnb'), CNB = dc.cnb;
+            elseif isfield(dc, 'CNB'), CNB = dc.CNB;
+            else, CNB = 0.02;
             end
             
             CY = CYB * beta;
@@ -238,74 +218,18 @@ classdef Aerodynamics < handle
             if V > 1
                 b = geom.wing_span;
                 c = geom.mean_aerodynamic_chord;
-                
                 p_hat = omega(1) * b / (2*V);
                 q_hat = omega(2) * c / (2*V);
                 r_hat = omega(3) * b / (2*V);
                 
-                if isfield(dc, 'clq')
-                    CLQ = dc.clq;
-                elseif isfield(dc, 'CLQ')
-                    CLQ = dc.CLQ;
-                else
-                    CLQ = 7.3;
-                end
-                
-                if isfield(dc, 'cmq')
-                    CMQ = dc.cmq;
-                elseif isfield(dc, 'CMQ')
-                    CMQ = dc.CMQ;
-                else
-                    CMQ = -14.7;
-                end
-                
-                if isfield(dc, 'clp')
-                    CLP = dc.clp;
-                elseif isfield(dc, 'CLP')
-                    CLP = dc.CLP;
-                else
-                    CLP = -0.46;
-                end
-                
-                if isfield(dc, 'clr')
-                    CLR = dc.clr;
-                elseif isfield(dc, 'CLR')
-                    CLR = dc.CLR;
-                else
-                    CLR = 0.04;
-                end
-                
-                if isfield(dc, 'cnp')
-                    CNP = dc.cnp;
-                elseif isfield(dc, 'CNP')
-                    CNP = dc.CNP;
-                else
-                    CNP = -0.01;
-                end
-                
-                if isfield(dc, 'cnr')
-                    CNR = dc.cnr;
-                elseif isfield(dc, 'CNR')
-                    CNR = dc.CNR;
-                else
-                    CNR = -0.05;
-                end
-                
-                if isfield(dc, 'cyp')
-                    CYP = dc.cyp;
-                elseif isfield(dc, 'CYP')
-                    CYP = dc.CYP;
-                else
-                    CYP = -0.05;
-                end
-                
-                if isfield(dc, 'cyr')
-                    CYR = dc.cyr;
-                elseif isfield(dc, 'CYR')
-                    CYR = dc.CYR;
-                else
-                    CYR = 0.35;
-                end
+                if isfield(dc, 'clq'), CLQ = dc.clq; elseif isfield(dc, 'CLQ'), CLQ = dc.CLQ; else, CLQ = 7.3; end
+                if isfield(dc, 'cmq'), CMQ = dc.cmq; elseif isfield(dc, 'CMQ'), CMQ = dc.CMQ; else, CMQ = -14.7; end
+                if isfield(dc, 'clp'), CLP = dc.clp; elseif isfield(dc, 'CLP'), CLP = dc.CLP; else, CLP = -0.46; end
+                if isfield(dc, 'clr'), CLR = dc.clr; elseif isfield(dc, 'CLR'), CLR = dc.CLR; else, CLR = 0.04; end
+                if isfield(dc, 'cnp'), CNP = dc.cnp; elseif isfield(dc, 'CNP'), CNP = dc.CNP; else, CNP = -0.01; end
+                if isfield(dc, 'cnr'), CNR = dc.cnr; elseif isfield(dc, 'CNR'), CNR = dc.CNR; else, CNR = -0.05; end
+                if isfield(dc, 'cyp'), CYP = dc.cyp; elseif isfield(dc, 'CYP'), CYP = dc.CYP; else, CYP = -0.05; end
+                if isfield(dc, 'cyr'), CYR = dc.cyr; elseif isfield(dc, 'CYR'), CYR = dc.CYR; else, CYR = 0.35; end
                 
                 CL = CL + CLQ * q_hat;
                 Cm = Cm + CMQ * q_hat;
@@ -325,23 +249,12 @@ classdef Aerodynamics < handle
             ca = cos(alpha);
             sa = sin(alpha);
             
-            F = [
-                -D*ca + L*sa;
-                Y;
-                -D*sa - L*ca
-            ];
-            
-            M = [
-                Cl * q_bar * S * b;
-                Cm * q_bar * S * c;
-                Cn * q_bar * S * b
-            ];
+            F = [-D*ca + L*sa; Y; -D*sa - L*ca];
+            M = [Cl * q_bar * S * b; Cm * q_bar * S * c; Cn * q_bar * S * b];
         end
         
         function [F, M, breakdown] = calculate_forces_moments_with_breakdown(obj, x, u, geom, aircraft, dt)
-            if nargin < 6 || isempty(dt)
-                dt = 0.01;
-            end
+            if nargin < 6 || isempty(dt), dt = 0.01; end
             
             if obj.use_datcom_direct
                 [F, M] = obj.calculate_forces_moments_from_datcom(x, u, geom, obj.datcom_data);
@@ -350,108 +263,63 @@ classdef Aerodynamics < handle
             end
             
             if isempty(obj.coeff_lookup)
-                F = zeros(3,1);
-                M = zeros(3,1);
-                breakdown = struct();
-                return;
+                F = zeros(3,1); M = zeros(3,1); breakdown = struct(); return;
             end
             
-            u_b = x(4);
-            v_b = x(5);
-            w_b = x(6);
+            u_b = x(4); v_b = x(5); w_b = x(6);
             V = sqrt(u_b^2 + v_b^2 + w_b^2);
             alt = max(-x(3),0);
             [~,~,~,rho] = atmosisa(alt);
             q = 0.5 * rho * V^2;
-            S = geom.wing_area;
-            b = geom.wing_span;
+            S = geom.wing_area; b = geom.wing_span;
             
-            if isprop(geom,'mean_aerodynamic_chord')
-                cbar = geom.mean_aerodynamic_chord;
-            elseif isprop(geom,'wing_chord')
-                cbar = geom.wing_chord;
-            else
-                cbar = 0;
-            end
-            
-            if cbar == 0
-                cbar = S / max(b, 1e-9);
-            end
+            if isprop(geom,'mean_aerodynamic_chord'), cbar = geom.mean_aerodynamic_chord;
+            elseif isprop(geom,'wing_chord'), cbar = geom.wing_chord;
+            else, cbar = 0; end
+            if cbar == 0, cbar = S / max(b, 1e-9); end
             
             coeff_base = obj.coeff_lookup(x, u, geom);
             
-            CL_base = coeff_base.CL;
-            CD_base = coeff_base.CD;
-            CY_base = coeff_base.CY;
-            Cl_base = coeff_base.Cl;
-            Cm_base = coeff_base.Cm;
-            Cn_base = coeff_base.Cn;
-            
             breakdown = struct();
-            breakdown.base = struct('CL',CL_base,'CD',CD_base,'CY',CY_base,'Cl',Cl_base,'Cm',Cm_base,'Cn',Cn_base);
-            breakdown.surfaces = struct('name',{},'deflection',{},'axis',{},'dCl',{},'dCm',{},'dCn',{},'Cl_contrib',{},'Cm_contrib',{},'Cn_contrib',{});
+            breakdown.base = struct('CL',coeff_base.CL,'CD',coeff_base.CD,'CY',coeff_base.CY, ...
+                                    'Cl',coeff_base.Cl,'Cm',coeff_base.Cm,'Cn',coeff_base.Cn);
+            breakdown.surfaces = struct('name',{},'deflection',{},'axis',{},'dCl',{},'dCm',{},'dCn',{}, ...
+                                        'Cl_contrib',{},'Cm_contrib',{},'Cn_contrib',{});
             
-            n_cs = numel(aircraft.control_surfaces);
+            Cl_total = coeff_base.Cl; Cm_total = coeff_base.Cm; Cn_total = coeff_base.Cn;
             
-            for i = 1:n_cs
+            for i = 1:numel(aircraft.control_surfaces)
                 cs = aircraft.control_surfaces(i);
                 delta = cs.deflection;
                 axis = cs.axis;
-                
-                if numel(axis) < 3
-                    axis = [axis(:); zeros(3-numel(axis),1)];
-                end
+                if numel(axis) < 3, axis = [axis(:); zeros(3-numel(axis),1)]; end
                 axis = axis(1:3);
-                
-                dCl_rate = cs.dCl;
-                dCm_rate = cs.dCm;
-                dCn_rate = cs.dCn;
-                
-                Cl_contrib = dCl_rate * delta * axis(1);
-                Cm_contrib = dCm_rate * delta * axis(2);
-                Cn_contrib = dCn_rate * delta * axis(3);
-                
-                breakdown.surfaces(i).name = char(cs.name);
-                breakdown.surfaces(i).deflection = delta;
-                breakdown.surfaces(i).axis = axis;
-                breakdown.surfaces(i).dCl = dCl_rate;
-                breakdown.surfaces(i).dCm = dCm_rate;
-                breakdown.surfaces(i).dCn = dCn_rate;
-                breakdown.surfaces(i).Cl_contrib = Cl_contrib;
-                breakdown.surfaces(i).Cm_contrib = Cm_contrib;
-                breakdown.surfaces(i).Cn_contrib = Cn_contrib;
+                Cl_c = cs.dCl * delta * axis(1);
+                Cm_c = cs.dCm * delta * axis(2);
+                Cn_c = cs.dCn * delta * axis(3);
+                breakdown.surfaces(i).name        = char(cs.name);
+                breakdown.surfaces(i).deflection  = delta;
+                breakdown.surfaces(i).axis        = axis;
+                breakdown.surfaces(i).dCl         = cs.dCl;
+                breakdown.surfaces(i).dCm         = cs.dCm;
+                breakdown.surfaces(i).dCn         = cs.dCn;
+                breakdown.surfaces(i).Cl_contrib  = Cl_c;
+                breakdown.surfaces(i).Cm_contrib  = Cm_c;
+                breakdown.surfaces(i).Cn_contrib  = Cn_c;
+                Cl_total = Cl_total + Cl_c;
+                Cm_total = Cm_total + Cm_c;
+                Cn_total = Cn_total + Cn_c;
             end
             
-            Cl_total = Cl_base;
-            Cm_total = Cm_base;
-            Cn_total = Cn_base;
+            breakdown.total = struct('CL',coeff_base.CL,'CD',coeff_base.CD,'CY',coeff_base.CY, ...
+                                     'Cl',Cl_total,'Cm',Cm_total,'Cn',Cn_total);
             
-            for i = 1:numel(breakdown.surfaces)
-                Cl_total = Cl_total + breakdown.surfaces(i).Cl_contrib;
-                Cm_total = Cm_total + breakdown.surfaces(i).Cm_contrib;
-                Cn_total = Cn_total + breakdown.surfaces(i).Cn_contrib;
-            end
-            
-            breakdown.total = struct('CL',CL_base,'CD',CD_base,'CY',CY_base,'Cl',Cl_total,'Cm',Cm_total,'Cn',Cn_total);
-            
-            L = CL_base * q * S;
-            D = CD_base * q * S;
-            Y = CY_base * q * S;
-            
-            Lr = Cl_total * q * S * b;
-            Mp = Cm_total * q * S * cbar;
-            Ny = Cn_total * q * S * b;
-            
+            L = coeff_base.CL * q * S; D = coeff_base.CD * q * S; Y = coeff_base.CY * q * S;
             alpha = atan2(w_b, max(abs(u_b), 1e-9));
-            ca = cos(alpha);
-            sa = sin(alpha);
+            ca = cos(alpha); sa = sin(alpha);
             
-            Fx = -D*ca + L*sa;
-            Fy = Y;
-            Fz = -D*sa - L*ca;
-            
-            F = [Fx; Fy; Fz];
-            M = [Lr; Mp; Ny];
+            F = [-D*ca + L*sa; Y; -D*sa - L*ca];
+            M = [Cl_total*q*S*b; Cm_total*q*S*cbar; Cn_total*q*S*b];
         end
     end
 end
