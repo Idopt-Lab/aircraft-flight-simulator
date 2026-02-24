@@ -49,8 +49,8 @@ Cnb = 0.241;
 Cmalpha_M_mach = [0.6, 0.8, 0.9, 1.0, 1.1, 1.2];
 Cmalpha_M_data = [0.0, 0.0974, -0.3323, -0.9626, -0.8480, -0.7907];
 
-CLq = 28.9;
-Cmq = -5.23;
+CLq = 7.282;
+Cmq = -12.0;
 Clp = -0.443;
 Cnr = -0.378;
 
@@ -64,12 +64,12 @@ CD_wave = [0.0, 0.0, 0.023, 0.015];
 
 vel = state_vec(4:6);
 omega = state_vec(10:12);
-altitude = max(-state_vec(3),0);
-V = max(norm(vel),1e-6);
+altitude = max(-state_vec(3), 0);
+V = max(norm(vel), 1e-6);
 alpha = atan2(vel(3), max(abs(vel(1)), 1e-9));
 beta = atan2(vel(2), max(sqrt(vel(1)^2 + vel(3)^2), 1e-9));
-[~,a,~] = atmosisa(altitude);
-mach = V/max(a,1e-6);
+[~, a, ~] = atmosisa(altitude);
+mach = V / max(a, 1e-6);
 
 de = 0;
 if numel(control_vec) >= 2
@@ -78,7 +78,7 @@ end
 
 S = geometry.wing_area;
 b = geometry.wing_span;
-if isprop(geometry,'mean_aerodynamic_chord')
+if isprop(geometry, 'mean_aerodynamic_chord')
     c = geometry.mean_aerodynamic_chord;
 else
     c = geometry.wing_chord;
@@ -88,10 +88,11 @@ CL = interp2(elevator_range, alpha_range, CLDh_table, de, alpha, 'linear', 0);
 CD = interp2(elevator_range, alpha_range, CDDh_table, de, alpha, 'linear', 0);
 Cm = interp2(elevator_range, alpha_range, CmDh_table, de, alpha, 'linear', 0);
 
-CD_mach_increment = interp1(mach_wave, CD_wave, mach, 'linear', 'extrap');
-CD = CD + CD_mach_increment;
+CD_mach_increment = interp1(mach_wave, CD_wave, min(mach, mach_wave(end)), 'linear', 0);
+CD = CD + max(0, CD_mach_increment);
 
-Cmalpha = interp1(Cmalpha_M_mach, Cmalpha_M_data, mach, 'linear', 'extrap');
+mach_cm = max(Cmalpha_M_mach(1), min(Cmalpha_M_mach(end), mach));
+Cmalpha = interp1(Cmalpha_M_mach, Cmalpha_M_data, mach_cm, 'linear');
 Cm = Cm + Cmalpha * alpha;
 
 CY = CYb * beta;
@@ -99,22 +100,22 @@ Cl = Clb * beta;
 Cn = Cnb * beta;
 
 if V > 1
-    p_hat = omega(1)*b/(2*V);
-    q_hat = omega(2)*c/(2*V);
-    r_hat = omega(3)*b/(2*V);
+    p_hat = omega(1) * b / (2 * V);
+    q_hat = omega(2) * c / (2 * V);
+    r_hat = omega(3) * b / (2 * V);
 
-    CL = CL + CLq*q_hat;
-    Cm = Cm + Cmq*q_hat;
+    CL = CL + CLq * q_hat;
+    Cm = Cm + Cmq * q_hat;
 
     Clr = interp1(alpha_range, Clr_vs_alpha, alpha, 'linear', 'extrap');
-    Cl = Cl + Clp*p_hat + Clr*r_hat;
+    Cl = Cl + Clp * p_hat + Clr * r_hat;
 
     Cnp = interp1(alpha_range, Cnp_vs_alpha, alpha, 'linear', 'extrap');
-    Cn = Cn + Cnp*p_hat + Cnr*r_hat;
+    Cn = Cn + Cnp * p_hat + Cnr * r_hat;
 
     CYp = interp1(alpha_range, CYp_vs_alpha, alpha, 'linear', 'extrap');
     CYr = interp1(alpha_range, CYr_vs_alpha, alpha, 'linear', 'extrap');
-    CY = CY + CYp*p_hat + CYr*r_hat;
+    CY = CY + CYp * p_hat + CYr * r_hat;
 end
 
 takeoff_params = struct('mu_ground',0.02,'mu_rolling',0.02,'mu_braking',0.35, ...
