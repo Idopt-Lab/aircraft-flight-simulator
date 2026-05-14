@@ -274,20 +274,6 @@ pip install pygame websockets
 python Send_FDM_Torg.py
 ```
 
-## Notes
-
-Windows joystick handling uses:
-
-```python
-pygame.joystick.Joystick(index)
-```
-
-Linux-specific interfaces such as:
-
-```text
-/dev/input/js1
-evdev
-```
 
 are not used on Windows.
 
