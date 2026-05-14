@@ -271,7 +271,7 @@ pip install pygame websockets
 ## 5. Run Joystick Sender
 
 ```powershell
-python Send_FDM_Torg.py
+python Send_FDM.py
 ```
 
 
