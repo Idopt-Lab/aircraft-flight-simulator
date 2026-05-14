@@ -181,7 +181,7 @@ classdef (Abstract) Mass < handle
             m = obj.fuel_mass;
         end
 
-        % ── Gravity force and moment computation ─────────────────────────
+    
 
         function [F_g, M_g] = get_gravity_force_moment(obj, euler_angles, ref_point)
             % GET_GRAVITY_FORCE_MOMENT  Compute gravity force and moment in body axes.
