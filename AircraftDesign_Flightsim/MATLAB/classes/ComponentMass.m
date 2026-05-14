@@ -105,7 +105,6 @@ classdef ComponentMass < Mass
             end
         end
 
-        % ── Required abstract implementations ────────────────────────────
 
         function m = get_total_mass(obj)
             % GET_TOTAL_MASS  Return total mass (empty + fuel) [kg].
