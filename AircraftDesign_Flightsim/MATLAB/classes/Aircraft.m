@@ -143,7 +143,7 @@ reference_point = [0 0 0]
             obj.control  = ControlVector();
         end
 
-        % ── Mass model assignment ────────────────────────────────────────────
+    
 
         function set_mass_model(obj, mass_model)
         % SET_MASS_MODEL  Assign a Mass subclass object directly.
@@ -164,7 +164,7 @@ reference_point = [0 0 0]
             obj.mass = mass_model;
         end
 
-        % ── Aerodynamics assignment ──────────────────────────────────────────
+
 
         function set_aerodynamics(obj, aero_model)
         % SET_AERODYNAMICS  Assign an Aerodynamics subclass object directly.
@@ -221,8 +221,6 @@ reference_point = [0 0 0]
             end
         end
 
-        % ── Component management ─────────────────────────────────────────────
-
         function add_control_surface(obj, cs)
         % ADD_CONTROL_SURFACE  Append a ControlSurface and rebuild the registry.
         %
@@ -254,8 +252,6 @@ reference_point = [0 0 0]
             obj.build_control_registry_if_needed();
             obj.sync_control_vector_from_components();
         end
-
-        % ── Factory accessors (lazy instantiation) ───────────────────────────
 
         function cfg = get_configurator(obj)
         % GET_CONFIGURATOR  Return the AircraftConfigurator, creating it if needed.
@@ -328,9 +324,6 @@ reference_point = [0 0 0]
             end
             mp = obj.mission_planner_obj;
         end
-
-        % ── Analysis convenience wrappers ────────────────────────────────────
-
         function varargout = run_takeoff(obj, varargin)
         % RUN_TAKEOFF  Execute takeoff via TakeoffAnalysis.calculate_takeoff().
         %   Passes all arguments through. See TakeoffAnalysis for details.
@@ -364,8 +357,6 @@ reference_point = [0 0 0]
                 [varargout{:}] = ld.calculate_landing(varargin{:});
             end
         end
-
-        % ── Control vector management ────────────────────────────────────────
 
         function build_control_registry_if_needed(obj)
         % BUILD_CONTROL_REGISTRY_IF_NEEDED  Rebuild ControlVector name-index map.
@@ -535,8 +526,6 @@ end
                 end
             end
         end
-
-        % ── Force and moment assembly ────────────────────────────────────────
 
         function [F_total, M_total, total_fuel_flow] = calculate_external_forces_moments(obj)
         % CALCULATE_EXTERNAL_FORCES_MOMENTS  Aero + thrust; no gravity.
@@ -729,8 +718,6 @@ end
             if isempty(I_mat) || ~isequal(size(I_mat),[3 3]) || any(~isfinite(I_mat(:)))
                 I_mat = eye(3);
             end
-
-            % Restore original state
             obj.time_step = dt_old;
             obj.state.set_full_state(x_old);
             obj.set_controls_from_vector(u_old);
