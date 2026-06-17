@@ -304,9 +304,7 @@ assignin("base", "sim_stop_time", sim_time);
 assignin("base", "dt_fc", dt_fc);
 assignin("base", "disable_rate_limiting", disable_rate_limiting);
 assignin("base", "ground_k", ground_k);
-assignin("base", "ground_c", ground_c);
 
-fprintf("\n=== SIMULINK WORKSPACE ASSIGNED ===\n");
 fprintf("n_cs             = %d\n", n_cs);
 fprintf("n_pe             = %d\n", n_pe);
 fprintf("n_total          = %d\n", n_total);
