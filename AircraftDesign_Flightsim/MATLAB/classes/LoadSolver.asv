@@ -1,0 +1,42 @@
+classdef (Abstract) LoadSolver < handle
+
+    properties
+        frame = []   % frame where local force/moment are defined and applied
+    end
+
+    methods
+        function set_frame(obj, frame)
+            if ~isa(frame,'ReferenceFrame')
+                error('LoadSolver:InvalidFrame','frame must be ReferenceFrame.');
+            end
+            obj.frame = frame;
+        end
+
+        function [F_out, M_out] = compute_loads_in_frame(obj, x, u, target_frame, ref_frame)
+            % Returns force expressed in target_frame.
+            % Returns moment about ref_frame origin, expressed in target_frame.
+
+            if isempty(obj.frame)
+                error('LoadSolver:NoFrame','LoadSolver frame not set.');
+            end
+
+            if nargin < 5 || isempty(ref_frame)
+                ref_frame = target_frame;
+            end
+
+            [F_local, M_local] = obj.get_FM_localAxis(x, u);
+
+            [F_out, M_out] = obj.frame.transform_FM_to( ...
+                target_frame, F_local, M_local, x, ref_frame);
+        end
+
+        function [F_body, M_body] = compute_body_loads(obj, x, u, body_frame, ref_frame)
+            % Backward-compatible wrapper
+            [F_body, M_body] = obj.compute_loads_in_frame(x, u, body_frame, ref_frame);
+        end
+    end
+
+    methods (Abstract)
+        [F_local, M_local] = get_FM_localAxis(obj, x, u)
+    end
+end
