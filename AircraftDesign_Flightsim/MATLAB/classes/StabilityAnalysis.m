@@ -1,16 +1,4 @@
 classdef StabilityAnalysis < handle
-% STABILITYANALYSIS  Linearises the aircraft model and classifies dynamic modes.
-%
-%   Computes the state (A) and input (B) matrices by central-difference
-%   numerical differentiation about a stored trim condition, then extracts
-%   eigenvalues/eigenvectors and classifies them into the five standard
-%   aircraft dynamic modes.
-%
-%   Also provides static stability sweeps:
-%     compute_pitch_static_stability  — Cm vs alpha sweep → Cm_alpha
-%     compute_yaw_static_stability    — Cn vs beta  sweep → Cn_beta
-%
-%   See also: GenericTrimSolver, Aircraft, PerformanceAnalysis
 
     properties
         aircraft = []
@@ -28,36 +16,15 @@ classdef StabilityAnalysis < handle
         dutch_roll = []
         roll_subsidence = []
         spiral = []
-        roll_indices = []
-        pitch_indices = []
-        yaw_indices = []
-        throttle_start_index = 0
         state_indices = []
     end
 
     methods
 
         function obj = StabilityAnalysis(aircraft)
-            %% 
             if nargin >= 1
                 obj.aircraft = aircraft;
             end
-            obj.identify_control_indices();
-        end
-
-        function identify_control_indices(obj)
-            if isempty(obj.aircraft) || ~isvalid(obj.aircraft)
-                obj.roll_indices = [];
-                obj.pitch_indices = [];
-                obj.yaw_indices = [];
-                obj.throttle_start_index = 0;
-                return
-            end
-
-            obj.roll_indices = obj.aircraft.get_control_indices_by_axis('roll');
-            obj.pitch_indices = obj.aircraft.get_control_indices_by_axis('pitch');
-            obj.yaw_indices = obj.aircraft.get_control_indices_by_axis('yaw');
-            obj.throttle_start_index = numel(obj.aircraft.control_surfaces) + 1;
         end
 
         function set_trim(obj, x_trim, u_trim)
@@ -70,13 +37,14 @@ classdef StabilityAnalysis < handle
             if nargin < 2 || isempty(alpha_range_rad)
                 alpha_range_rad = deg2rad(-5:0.5:10);
             end
+
             if isempty(obj.trim_state) || isempty(obj.trim_controls)
                 error('StabilityAnalysis:TrimNotSet','trim_state and trim_controls must be set before static stability analysis');
             end
 
-            ac    = obj.aircraft;
-            x0    = obj.trim_state(:);
-            u0    = obj.trim_controls(:);
+            ac = obj.aircraft;
+            x0 = obj.trim_state(:);
+            u0 = obj.trim_controls(:);
             x_old = ac.state.get_full_state();
             u_old = ac.get_control_vector();
 
@@ -93,6 +61,7 @@ classdef StabilityAnalysis < handle
 
             for i = 1:numel(alpha_vec)
                 alpha = alpha_vec(i);
+
                 x_test = x0;
                 x_test(4) = V*cos(alpha);
                 x_test(5) = 0;
@@ -104,12 +73,13 @@ classdef StabilityAnalysis < handle
 
                 ac.state.set_full_state(x_test);
                 ac.set_controls_from_vector(u0);
-                [~,M_ext,~] = ac.calculate_external_forces_moments();
-                Cm_vec(i) = M_ext(2) / max(qbar*S*cbar, 1e-9);
+
+                [~,M_ext] = ac.compute_total_loads(x_test,u0);
+                Cm_vec(i) = M_ext(2) / max(qbar*S*cbar,1e-9);
             end
 
             alpha_trim = atan2(x0(6), max(abs(x0(4)),1e-9));
-            Cm_alpha = obj.local_interp_slope(alpha_vec, Cm_vec, alpha_trim);
+            Cm_alpha = obj.local_interp_slope(alpha_vec,Cm_vec,alpha_trim);
 
             ac.state.set_full_state(x_old);
             ac.set_controls_from_vector(u_old);
@@ -120,13 +90,14 @@ classdef StabilityAnalysis < handle
             if nargin < 2 || isempty(beta_range_rad)
                 beta_range_rad = deg2rad(-8:0.5:8);
             end
+
             if isempty(obj.trim_state) || isempty(obj.trim_controls)
                 error('StabilityAnalysis:TrimNotSet','trim_state and trim_controls must be set before static stability analysis');
             end
 
-            ac    = obj.aircraft;
-            x0    = obj.trim_state(:);
-            u0    = obj.trim_controls(:);
+            ac = obj.aircraft;
+            x0 = obj.trim_state(:);
+            u0 = obj.trim_controls(:);
             x_old = ac.state.get_full_state();
             u_old = ac.get_control_vector();
 
@@ -143,6 +114,7 @@ classdef StabilityAnalysis < handle
 
             for i = 1:numel(beta_vec)
                 beta = beta_vec(i);
+
                 x_test = x0;
                 x_test(4) = V*cos(alpha0)*cos(beta);
                 x_test(5) = V*sin(beta);
@@ -153,11 +125,12 @@ classdef StabilityAnalysis < handle
 
                 ac.state.set_full_state(x_test);
                 ac.set_controls_from_vector(u0);
-                [~,M_ext,~] = ac.calculate_external_forces_moments();
-                Cn_vec(i) = M_ext(3) / max(qbar*S*b, 1e-9);
+
+                [~,M_ext] = ac.compute_total_loads(x_test,u0);
+                Cn_vec(i) = M_ext(3) / max(qbar*S*b,1e-9);
             end
 
-            Cn_beta = obj.local_interp_slope(beta_vec, Cn_vec, 0);
+            Cn_beta = obj.local_interp_slope(beta_vec,Cn_vec,0);
 
             ac.state.set_full_state(x_old);
             ac.set_controls_from_vector(u_old);
@@ -168,6 +141,7 @@ classdef StabilityAnalysis < handle
             y = y(:);
 
             [~,idx] = min(abs(x-x0));
+
             if numel(x) < 2
                 slope = NaN;
                 return
@@ -185,6 +159,7 @@ classdef StabilityAnalysis < handle
             end
 
             dx = x(idx2)-x(idx1);
+
             if abs(dx) < 1e-12
                 slope = NaN;
             else
@@ -192,23 +167,27 @@ classdef StabilityAnalysis < handle
             end
         end
 
-        function [A, B] = linearize(obj, dx, du)
+        function [A,B] = linearize(obj, dx, du)
 
             if nargin < 2 || isempty(dx) || ~isfinite(dx) || dx <= 0
                 dx = 1e-6;
             end
+
             if nargin < 3 || isempty(du) || ~isfinite(du) || du <= 0
                 du = 1e-6;
             end
+
             if isempty(obj.trim_state) || isempty(obj.trim_controls)
-                error('StabilityAnalysis:TrimNotSet','trim_state and trim_controls must be set before linearize')
+                error('StabilityAnalysis:TrimNotSet','trim_state and trim_controls must be set before linearize');
             end
+
             if isempty(obj.aircraft) || ~isvalid(obj.aircraft)
-                error('StabilityAnalysis:InvalidAircraft','aircraft is empty or invalid')
+                error('StabilityAnalysis:InvalidAircraft','aircraft is empty or invalid');
             end
 
             x0 = obj.trim_state(:);
             u0 = obj.trim_controls(:);
+
             nX = numel(x0);
             nU = numel(u0);
 
@@ -218,16 +197,20 @@ classdef StabilityAnalysis < handle
             for i = 1:nX
                 xp = x0;
                 xm = x0;
+
                 xp(i) = xp(i) + dx;
                 xm(i) = xm(i) - dx;
+
                 A(:,i) = (obj.state_derivative(xp,u0) - obj.state_derivative(xm,u0)) / (2*dx);
             end
 
             for j = 1:nU
                 up = u0;
                 um = u0;
+
                 up(j) = up(j) + du;
                 um(j) = um(j) - du;
+
                 B(:,j) = (obj.state_derivative(x0,up) - obj.state_derivative(x0,um)) / (2*du);
             end
 
@@ -241,15 +224,12 @@ classdef StabilityAnalysis < handle
 
             x_old = ac.state.get_full_state();
             u_old = ac.get_control_vector();
-            dt_old = ac.time_step;
 
-            ac.time_step = max(ac.time_step, 1e-3);
             ac.state.set_full_state(state);
             ac.set_controls_from_vector(controls);
 
-            [F_ext,M_ext,~] = ac.calculate_external_forces_moments();
-            m = ac.mass.get_total_mass();
-            I = ac.mass.get_inertia_matrix();
+            [F_ext,M_ext] = ac.compute_total_loads(state,controls);
+            [m,~,I] = ac.compute_total_mass_properties();
 
             vel = state(4:6);
             eul = state(7:9);
@@ -275,9 +255,7 @@ classdef StabilityAnalysis < handle
                     -st,   sp*ct,          cp*ct];
 
             pos_dot = R_be * vel;
-
-            Fg_b = m*9.80665*[-sin(theta); sin(phi)*cos(theta); cos(phi)*cos(theta)];
-            acc_b = (F_ext + Fg_b) / max(m,1e-9);
+            acc_b = F_ext / max(m,1e-9);
 
             vel_dot = zeros(3,1);
             vel_dot(1) = acc_b(1) - vel(3)*q + vel(2)*r;
@@ -294,7 +272,7 @@ classdef StabilityAnalysis < handle
             eul_dot(2) = q*cp - r*sp;
             eul_dot(3) = (q*sp + r*cp) / cth;
 
-            omg_dot = I \ (M_ext - cross(omg, I*omg));
+            omg_dot = I \ (M_ext - cross(omg,I*omg));
 
             x_dot = zeros(12,1);
             x_dot(1:3) = pos_dot;
@@ -302,7 +280,6 @@ classdef StabilityAnalysis < handle
             x_dot(7:9) = eul_dot;
             x_dot(10:12) = omg_dot;
 
-            ac.time_step = dt_old;
             ac.state.set_full_state(x_old);
             ac.set_controls_from_vector(u_old);
         end
@@ -314,14 +291,16 @@ classdef StabilityAnalysis < handle
             end
 
             [V,D] = eig(obj.A_matrix);
+
             obj.eigenvalues = diag(D);
             obj.eigenvectors = V;
 
             obj.classify_aircraft_modes();
 
             obj.modes = struct();
+
             for i = 1:numel(obj.eigenvalues)
-                obj.modes.(sprintf('Mode_%d',i)) = obj.characterize_mode(obj.eigenvalues(i), V(:,i));
+                obj.modes.(sprintf('Mode_%d',i)) = obj.characterize_mode(obj.eigenvalues(i),V(:,i));
             end
         end
 
@@ -330,14 +309,14 @@ classdef StabilityAnalysis < handle
             mode_char.eigenvalue = lambda;
 
             if abs(imag(lambda)) > 1e-8
-                wn   = abs(lambda);
+                wn = abs(lambda);
                 zeta = -real(lambda) / max(wn,1e-12);
 
-                mode_char.type          = 'Complex';
-                mode_char.natural_freq  = wn;
+                mode_char.type = 'Complex';
+                mode_char.natural_freq = wn;
                 mode_char.damping_ratio = zeta;
-                mode_char.frequency_hz  = abs(imag(lambda)) / (2*pi);
-                mode_char.period        = 2*pi / max(abs(imag(lambda)),1e-12);
+                mode_char.frequency_hz = abs(imag(lambda)) / (2*pi);
+                mode_char.period = 2*pi / max(abs(imag(lambda)),1e-12);
 
                 if real(lambda) < 0
                     mode_char.time_to_half = log(2) / abs(real(lambda));
@@ -373,134 +352,201 @@ classdef StabilityAnalysis < handle
 
         function classify_aircraft_modes(obj)
 
-            obj.longitudinal_modes = [];
-            obj.lateral_modes = [];
-            obj.phugoid = [];
-            obj.short_period = [];
-            obj.dutch_roll = [];
-            obj.roll_subsidence = [];
-            obj.spiral = [];
+    obj.longitudinal_modes = [];
+    obj.lateral_modes = [];
+    obj.phugoid = [];
+    obj.short_period = [];
+    obj.dutch_roll = [];
+    obj.roll_subsidence = [];
+    obj.spiral = [];
 
-            if isempty(obj.eigenvalues) || isempty(obj.eigenvectors)
-                return
-            end
+    if isempty(obj.eigenvalues) || isempty(obj.eigenvectors)
+        return
+    end
 
-            iu = 4; iv = 5; iw = 6; iphi = 7; itheta = 8; ip = 10; iq = 11; ir = 12;
-            cands = [];
+    iu = 4;
+    iv = 5;
+    iw = 6;
+    iphi = 7;
+    itheta = 8;
+    ip = 10;
+    iq = 11;
+    ir = 12;
 
-            for i = 1:numel(obj.eigenvalues)
-                lambda = obj.eigenvalues(i);
-                vec = obj.eigenvectors(:,i);
+    cands = [];
 
-                if ~isfinite(real(lambda)) || ~isfinite(imag(lambda))
-                    continue
-                end
-                if abs(real(lambda)) < 1e-12 && abs(imag(lambda)) < 1e-12
-                    continue
-                end
-                if abs(imag(lambda)) > 1e-8 && imag(lambda) < 0
-                    continue
-                end
+    for i = 1:numel(obj.eigenvalues)
 
-                s = max(abs(vec));
-                if s < 1e-12
-                    continue
-                end
+        lambda = obj.eigenvalues(i);
+        vec = obj.eigenvectors(:,i);
 
-                vecn = vec / s;
-                long_e = abs(vecn(iu)) + abs(vecn(iw)) + abs(vecn(itheta)) + abs(vecn(iq));
-                lat_e  = abs(vecn(iv)) + abs(vecn(iphi)) + abs(vecn(ip)) + abs(vecn(ir));
-
-                c.i = i;
-                c.lambda = lambda;
-                c.wn = abs(lambda);
-                c.long_e = long_e;
-                c.lat_e = lat_e;
-                c.is_osc = abs(imag(lambda)) > 1e-8;
-                c.sig = real(lambda);
-
-                if c.is_osc
-                    c.period = 2*pi / max(abs(imag(lambda)),1e-12);
-                    c.zeta = -real(lambda) / max(c.wn,1e-12);
-                else
-                    c.period = Inf;
-                    c.zeta = 0;
-                end
-
-                cands = [cands c]; %#ok<AGROW>
-            end
-
-            if isempty(cands)
-                return
-            end
-
-            osc = cands([cands.is_osc]);
-            fast = osc([osc.wn] >= 1.0);
-            slow = osc([osc.wn] < 1.0);
-
-            if ~isempty(fast)
-                [~,k] = max([fast.wn]);
-                m = fast(k);
-                obj.short_period = struct('index',m.i,'lambda',m.lambda,'period',m.period,'damping',m.zeta);
-                obj.longitudinal_modes = unique([obj.longitudinal_modes m.i]);
-            end
-
-            if ~isempty(slow)
-                [~,k] = min([slow.wn]);
-                m = slow(k);
-                obj.phugoid = struct('index',m.i,'lambda',m.lambda,'period',m.period,'damping',m.zeta);
-                obj.longitudinal_modes = unique([obj.longitudinal_modes m.i]);
-            end
-
-            if ~isempty(slow) && ~isempty(obj.phugoid)
-                rest = slow([slow.i] ~= obj.phugoid.index);
-                for k = 1:numel(rest)
-                    m = rest(k);
-                    if m.lat_e > m.long_e
-                        if isempty(obj.dutch_roll) || m.wn > abs(obj.dutch_roll.lambda)
-                            obj.dutch_roll = struct('index',m.i,'lambda',m.lambda,'period',m.period,'damping',m.zeta);
-                        end
-                        obj.lateral_modes = unique([obj.lateral_modes m.i]);
-                    else
-                        obj.longitudinal_modes = unique([obj.longitudinal_modes m.i]);
-                    end
-                end
-            end
-
-            real_cands = cands(~[cands.is_osc]);
-            for k = 1:numel(real_cands)
-                c = real_cands(k);
-                sig = c.sig;
-
-                if abs(sig) < 1e-6
-                    continue
-                end
-
-                if c.lat_e > c.long_e
-                    if abs(sig) >= 0.05
-                        if isempty(obj.roll_subsidence) || abs(sig) > abs(real(obj.roll_subsidence.lambda))
-                            obj.roll_subsidence = struct( ...
-                                'index',c.i, ...
-                                'lambda',c.lambda, ...
-                                'time_constant',1/max(abs(sig),1e-12));
-                        end
-                        obj.lateral_modes = unique([obj.lateral_modes c.i]);
-                    else
-                        if isempty(obj.spiral) || abs(sig) < abs(real(obj.spiral.lambda))
-                            obj.spiral = struct( ...
-                                'index',c.i, ...
-                                'lambda',c.lambda, ...
-                                'time_constant',1/max(abs(sig),1e-12), ...
-                                'stable',sig < 0);
-                        end
-                        obj.lateral_modes = unique([obj.lateral_modes c.i]);
-                    end
-                else
-                    obj.longitudinal_modes = unique([obj.longitudinal_modes c.i]);
-                end
-            end
+        if ~isfinite(real(lambda)) || ~isfinite(imag(lambda))
+            continue
         end
 
+        if abs(real(lambda)) < 1e-12 && abs(imag(lambda)) < 1e-12
+            continue
+        end
+
+        if abs(imag(lambda)) > 1e-8 && imag(lambda) < 0
+            continue
+        end
+
+        s = max(abs(vec));
+
+        if s < 1e-12
+            continue
+        end
+
+        vecn = abs(vec / s);
+
+        long_e = vecn(iu) + vecn(iw) + vecn(itheta) + vecn(iq);
+        lat_e  = vecn(iv) + vecn(iphi) + vecn(ip) + vecn(ir);
+
+        c.i = i;
+        c.lambda = lambda;
+        c.wn = abs(lambda);
+        c.sig = real(lambda);
+        c.is_osc = abs(imag(lambda)) > 1e-8;
+        c.long_e = long_e;
+        c.lat_e = lat_e;
+        c.long_ratio = long_e / max(long_e + lat_e, 1e-12);
+        c.lat_ratio = lat_e / max(long_e + lat_e, 1e-12);
+        c.u = vecn(iu);
+        c.v = vecn(iv);
+        c.w = vecn(iw);
+        c.phi = vecn(iphi);
+        c.theta = vecn(itheta);
+        c.p = vecn(ip);
+        c.q = vecn(iq);
+        c.r = vecn(ir);
+
+        if c.is_osc
+            c.period = 2*pi / max(abs(imag(lambda)),1e-12);
+            c.zeta = -real(lambda) / max(c.wn,1e-12);
+        else
+            c.period = Inf;
+            c.zeta = NaN;
+        end
+
+        cands = [cands c]; %#ok<AGROW>
+    end
+
+    if isempty(cands)
+        return
+    end
+
+    osc = cands([cands.is_osc]);
+    real_cands = cands(~[cands.is_osc]);
+
+    long_osc = osc([osc.long_ratio] >= [osc.lat_ratio]);
+    lat_osc  = osc([osc.lat_ratio] >  [osc.long_ratio]);
+
+    if ~isempty(long_osc)
+        [~,k_sp] = max([long_osc.w] + [long_osc.q] + 0.25*[long_osc.wn]);
+        m = long_osc(k_sp);
+
+        obj.short_period = struct( ...
+            'index',m.i, ...
+            'lambda',m.lambda, ...
+            'period',m.period, ...
+            'damping',m.zeta);
+
+        obj.longitudinal_modes = unique([obj.longitudinal_modes m.i]);
+
+        rem = long_osc([long_osc.i] ~= m.i);
+
+        if ~isempty(rem)
+            [~,k_ph] = min([rem.wn]);
+            p = rem(k_ph);
+
+            obj.phugoid = struct( ...
+                'index',p.i, ...
+                'lambda',p.lambda, ...
+                'period',p.period, ...
+                'damping',p.zeta);
+
+            obj.longitudinal_modes = unique([obj.longitudinal_modes p.i]);
+        end
+    end
+
+    if isempty(obj.phugoid) && ~isempty(long_osc)
+        [~,k_ph] = min([long_osc.wn]);
+        p = long_osc(k_ph);
+
+        if isempty(obj.short_period) || p.i ~= obj.short_period.index
+            obj.phugoid = struct( ...
+                'index',p.i, ...
+                'lambda',p.lambda, ...
+                'period',p.period, ...
+                'damping',p.zeta);
+
+            obj.longitudinal_modes = unique([obj.longitudinal_modes p.i]);
+        end
+    end
+
+    if ~isempty(lat_osc)
+        [~,k_dr] = max([lat_osc.v] + [lat_osc.r] + 0.25*[lat_osc.wn]);
+        m = lat_osc(k_dr);
+
+        obj.dutch_roll = struct( ...
+            'index',m.i, ...
+            'lambda',m.lambda, ...
+            'period',m.period, ...
+            'damping',m.zeta);
+
+        obj.lateral_modes = unique([obj.lateral_modes m.i]);
+    end
+
+    lat_real = real_cands([real_cands.lat_ratio] > [real_cands.long_ratio]);
+
+    if ~isempty(lat_real)
+        fast_real = lat_real(abs([lat_real.sig]) >= 0.05);
+        slow_real = lat_real(abs([lat_real.sig]) < 0.05);
+
+        if ~isempty(fast_real)
+            [~,k] = max(abs([fast_real.sig]));
+            m = fast_real(k);
+
+            obj.roll_subsidence = struct( ...
+                'index',m.i, ...
+                'lambda',m.lambda, ...
+                'time_constant',1/max(abs(m.sig),1e-12));
+
+            obj.lateral_modes = unique([obj.lateral_modes m.i]);
+        end
+
+        if ~isempty(slow_real)
+            [~,k] = min(abs([slow_real.sig]));
+            m = slow_real(k);
+
+            obj.spiral = struct( ...
+                'index',m.i, ...
+                'lambda',m.lambda, ...
+                'time_constant',1/max(abs(m.sig),1e-12), ...
+                'stable',m.sig < 0);
+
+            obj.lateral_modes = unique([obj.lateral_modes m.i]);
+        end
+    end
+
+    remaining_real = real_cands;
+
+    if isempty(obj.spiral) && ~isempty(remaining_real)
+        nonzero = remaining_real(abs([remaining_real.sig]) > 1e-6);
+
+        if ~isempty(nonzero)
+            [~,k] = min(abs([nonzero.sig]));
+            m = nonzero(k);
+
+            obj.spiral = struct( ...
+                'index',m.i, ...
+                'lambda',m.lambda, ...
+                'time_constant',1/max(abs(m.sig),1e-12), ...
+                'stable',m.sig < 0);
+        end
+    end
+end
         function s = get_modes_summary(obj)
             s = struct( ...
                 'short_period',obj.short_period, ...
@@ -510,5 +556,100 @@ classdef StabilityAnalysis < handle
                 'spiral',obj.spiral);
         end
 
+   
+    function P = compute_participation_factors(obj)
+    if isempty(obj.A_matrix)
+        error('StabilityAnalysis:NoA','A_matrix must be computed first.');
+    end
+
+    [V,D] = eig(obj.A_matrix);
+    W = inv(V);
+
+    P = abs(V .* W.');
+
+    for j = 1:size(P,2)
+        s = sum(P(:,j));
+        if s > 1e-12
+            P(:,j) = P(:,j) / s;
+        end
+    end
+
+    obj.eigenvalues = diag(D);
+    obj.eigenvectors = V;
+end
+
+function print_modes(obj)
+    s = obj.get_modes_summary();
+
+    fprintf('\n=== DYNAMIC MODES ===\n');
+
+    obj.print_one_mode('Short period', s.short_period);
+    obj.print_one_mode('Phugoid', s.phugoid);
+    obj.print_one_mode('Dutch roll', s.dutch_roll);
+    obj.print_one_mode('Roll subsidence', s.roll_subsidence);
+    obj.print_one_mode('Spiral', s.spiral);
+end
+
+function print_one_mode(~, name, m)
+    fprintf('\n%s:\n', name);
+
+    if isempty(m)
+        fprintf('  not identified\n');
+        return
+    end
+
+    fprintf('  index  : %d\n', m.index);
+    fprintf('  lambda : %.6f %+ .6fi\n', real(m.lambda), imag(m.lambda));
+
+    if isfield(m,'period')
+        fprintf('  period : %.4f s\n', m.period);
+    end
+
+    if isfield(m,'damping')
+        fprintf('  damping: %.4f\n', m.damping);
+    end
+
+    if isfield(m,'time_constant')
+        fprintf('  tau    : %.4f s\n', m.time_constant);
+    end
+
+    if isfield(m,'stable')
+        fprintf('  stable : %d\n', m.stable);
+    end
+end
+
+function plot_eigenvalues(obj)
+    if isempty(obj.eigenvalues)
+        error('StabilityAnalysis:NoEigenvalues','Run analyze_modes first.');
+    end
+
+    figure
+    plot(real(obj.eigenvalues), imag(obj.eigenvalues), 'x', 'LineWidth', 2, 'MarkerSize', 9)
+    xlabel('Real(\lambda) [1/s]')
+    ylabel('Imag(\lambda) [rad/s]')
+    title('Aircraft Eigenvalues')
+    grid on
+    xline(0,'--')
+    yline(0,'--')
+end
+
+function print_participation(obj)
+    P = obj.compute_participation_factors();
+
+    labels = ["x","y","z","u","v","w","phi","theta","psi","p","q","r"];
+
+    fprintf('\n=== TRUE PARTICIPATION FACTORS ===\n');
+
+    for j = 1:numel(obj.eigenvalues)
+        [vals,idx] = sort(P(:,j),'descend');
+
+        fprintf('\nMode %d: lambda = %.5f %+ .5fi\n', ...
+            j, real(obj.eigenvalues(j)), imag(obj.eigenvalues(j)));
+
+        for k = 1:min(5,numel(idx))
+            fprintf('  %-6s %.4f\n', labels(idx(k)), vals(k));
+        end
+    end
+end
     end
 end

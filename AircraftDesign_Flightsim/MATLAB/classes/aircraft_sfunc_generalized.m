@@ -1,45 +1,34 @@
 function aircraft_sfunc_generalized(block)
-% AIRCRAFT_SFUNC_GENERALIZED  Simulink Level-2 S-function for the aircraft model.
+% AIRCRAFT_SFUNC_GENERALIZED
+% Level-2 MATLAB S-function bridge between Simulink and the Aircraft object.
 %
-%   Bridges the Aircraft object (in the MATLAB base workspace) to a
-%   Simulink simulation. At each time step it reads the state and control
-%   inputs, evaluates total forces and moments via the Aircraft class, and
-%   outputs the results for the equations-of-motion integrator.
+% Inputs:
+%   1) x : 12x1 state vector [pos_NED; vel_body; euler; rates_body]
+%   2) u : n_total x 1 control vector [control surfaces; propulsive elements]
 %
-%   Base workspace variables required before simulation:
-%     ac       - Aircraft object (fully configured)
-%     n_total  - total number of controls (n_cs + n_pe)
-%
-%   
-%
-%   See also: Aircraft, setup, Start, Outputs
+% Outputs:
+%   1) F_body : 3x1 total force in body axes [N]
+%   2) M_body : 3x1 total moment about CG in body axes [N-m]
+%   3) fuel_flow_negative : scalar fuel mass rate [kg/s]
+%   4) mass : scalar aircraft mass [kg]
+%   5) I_dot : 3x3 inertia derivative [kg-m^2/s]
+%   6) I_body : 3x3 inertia matrix about CG/body axes [kg-m^2]
+%   7) V_body : 3x1 body velocity [m/s]
 
 setup(block);
 end
 
 function setup(block)
-% SETUP  Register block ports, dimensions, and sample time.
-%
-%   Input ports:
-%     1 - state vector x, 12x1 [pos(3); vel(3); euler(3); rates(3)]
-%     2 - control vector u, n_total x 1
-%
-%   Output ports:
-%     1 - total force vector F_total, 3x1 [N]
-%     2 - total moment vector M_ext, 3x1 [N-m]
-%     3 - fuel flow rate (negative), scalar [kg/s]
-%     4 - total aircraft mass, scalar [kg]
-%     5 - inertia rate matrix I_dot, 3x3 [kg-m^2/s]
-%     6 - inertia matrix I, 3x3 [kg-m^2]
-%     7 - body velocity vector, 3x1 [m/s]
 
 block.NumDialogPrms = 0;
 
 n_controls = 4;
-if evalin('base','exist(''n_total'',''var'')')
-    v = evalin('base','n_total');
-    if isnumeric(v) && isscalar(v) && isfinite(v) && v >= 1
-        n_controls = double(v);
+
+if evalin("base", "exist('n_total','var')")
+    n_from_base = evalin("base", "n_total");
+
+    if isnumeric(n_from_base) && isscalar(n_from_base) && isfinite(n_from_base) && n_from_base >= 1
+        n_controls = double(n_from_base);
     end
 end
 
@@ -64,84 +53,89 @@ block.OutputPort(6).Dimensions = [3 3];
 block.OutputPort(7).Dimensions = 3;
 
 block.SampleTimes = [-1 0];
-block.SimStateCompliance = 'DefaultSimState';
+block.SimStateCompliance = "DefaultSimState";
 
-block.RegBlockMethod('Start',   @Start);
-block.RegBlockMethod('Outputs', @Outputs);
+block.RegBlockMethod("Start",   @Start);
+block.RegBlockMethod("Outputs", @Outputs);
+
 end
 
-function Start(block)
-% START  Initialise persistent aircraft object at simulation start.
-%
-%   Loads the Aircraft object from the base workspace, extracts control
-%   surface and propulsion element counts, and re-exports them to the
-%   base workspace for use by other blocks.
+function Start(block) %#ok<INUSD>
 
-persistent ac n_total n_cs n_pe
-
-if isempty(ac)
-    if evalin('base','exist(''ac'',''var'')')
-        ac = evalin('base','ac');
-    else
-        error('aircraft_sfunc_generalized:NoAircraft','ac not found');
-    end
-
-    n_cs    = numel(ac.control_surfaces);
-    n_pe    = numel(ac.propulsive_elements);
-    n_total = n_cs + n_pe;
-
-    assignin('base','n_total', n_total);
-    assignin('base','n_cs',    n_cs);
-    assignin('base','n_pe',    n_pe);
+if ~evalin("base", "exist('ac','var')")
+    error("aircraft_sfunc_generalized:NoAircraft", ...
+        "Base workspace variable ac not found. Run setup_f16_simulink_clean first.");
 end
 
-assignin('base','ac_sfunc',      ac);
-assignin('base','n_total_sfunc', n_total);
-assignin('base','n_cs_sfunc',    n_cs);
-assignin('base','n_pe_sfunc',    n_pe);
+ac = evalin("base", "ac");
+
+n_cs    = numel(ac.control_surfaces);
+n_pe    = numel(ac.propulsive_elements);
+n_total = n_cs + n_pe;
+
+assignin("base", "n_cs", n_cs);
+assignin("base", "n_pe", n_pe);
+assignin("base", "n_total", n_total);
+
+assignin("base", "ac_sfunc", ac);
+assignin("base", "n_cs_sfunc", n_cs);
+assignin("base", "n_pe_sfunc", n_pe);
+assignin("base", "n_total_sfunc", n_total);
+
 end
 
 function Outputs(block)
-% OUTPUTS  Compute and write output ports at each simulation time step.
-%
-%   At each step this function:
-%     1. Reads state x and control u from input ports.
-%     2. Wraps Euler angles to valid ranges.
-%     3. Saturates controls to surface deflection and throttle limits.
-%     4. Applies rate limiting to control inputs (60 deg/s for surfaces,
-%        0.5/s for throttle) unless disable_rate_limiting is set.
-%     5. Updates the Aircraft object state and controls.
-%     6. Evaluates total forces and moments including ground contact.
-%     7. Writes forces, moments, fuel flow, mass, inertia, and velocity
-%        to the seven output ports.
-%     8. Issues a warning if the aircraft altitude goes below -5 m.
 
-persistent ac n_total n_cs n_pe last_t last_u
+persistent last_t last_u
 
-if isempty(last_t), last_t = block.CurrentTime; end
-
-if isempty(ac)
-    ac      = evalin('base','ac_sfunc');
-    n_total = evalin('base','n_total_sfunc');
-    n_cs    = evalin('base','n_cs_sfunc');
-    n_pe    = evalin('base','n_pe_sfunc');
+if evalin("base", "exist('ac_sfunc','var')")
+    ac = evalin("base", "ac_sfunc");
+else
+    ac = evalin("base", "ac");
 end
 
-t  = block.CurrentTime;
+n_cs    = numel(ac.control_surfaces);
+n_pe    = numel(ac.propulsive_elements);
+n_total = n_cs + n_pe;
+
+t = block.CurrentTime;
+
+if isempty(last_t)
+    last_t = t;
+end
+
 dt = t - last_t;
-if ~isfinite(dt) || dt <= 0, dt = 0.01; end
+
+if ~isfinite(dt) || dt <= 0
+    dt = 0.01;
+end
+
 dt = min(max(dt, 1e-4), 0.05);
 last_t = t;
 
-x = block.InputPort(1).Data(:);
-if numel(x) < 12, x(end+1:12,1) = 0; else, x = x(1:12); end
+%% Read state
 
-x(7) = wrapToPi(x(7));
-x(9) = wrapToPi(x(9));
-x(8) = min(max(x(8), -pi/2+0.01), pi/2-0.01);
+x = block.InputPort(1).Data(:);
+
+if numel(x) < 12
+    x(end+1:12,1) = 0;
+else
+    x = x(1:12);
+end
+
+x(7) = local_wrap_to_pi(x(7));
+x(9) = local_wrap_to_pi(x(9));
+x(8) = min(max(x(8), -pi/2 + 0.01), pi/2 - 0.01);
+
+%% Read controls
 
 u_in = block.InputPort(2).Data(:);
-if numel(u_in) < n_total, u_in(end+1:n_total,1) = 0; else, u_in = u_in(1:n_total); end
+
+if numel(u_in) < n_total
+    u_in(end+1:n_total,1) = 0;
+else
+    u_in = u_in(1:n_total);
+end
 
 if isempty(last_u) || numel(last_u) ~= n_total
     last_u = u_in;
@@ -149,51 +143,137 @@ end
 
 u_out = u_in;
 
+%% Saturate controls
+
 for i = 1:n_cs
     u_out(i) = min(max(u_out(i), ac.control_surfaces(i).min_deflection), ...
                                   ac.control_surfaces(i).max_deflection);
 end
+
 if n_pe > 0
     u_out(n_cs+1:end) = min(max(u_out(n_cs+1:end), 0), 1);
 end
 
-use_rate_limiting = 1;
-if evalin('base','exist(''disable_rate_limiting'',''var'')')
-    use_rate_limiting = ~double(evalin('base','disable_rate_limiting'));
+%% Optional rate limiting
+
+use_rate_limiting = true;
+
+if evalin("base", "exist('disable_rate_limiting','var')")
+    use_rate_limiting = ~logical(evalin("base", "disable_rate_limiting"));
 end
 
 if use_rate_limiting
     max_du = zeros(size(u_out));
-    max_du(1:n_cs) = deg2rad(60) * dt;
-    if n_pe > 0, max_du(n_cs+1:end) = 0.5 * dt; end
-    du    = min(max(u_out - last_u, -max_du), max_du);
+
+    if n_cs > 0
+        max_du(1:n_cs) = deg2rad(60) * dt;
+    end
+
+    if n_pe > 0
+        max_du(n_cs+1:end) = 0.5 * dt;
+    end
+
+    du = min(max(u_out - last_u, -max_du), max_du);
     u_out = last_u + du;
 end
 
 last_u = u_out;
 
+%% Update aircraft
+
 ac.state.set_full_state(x);
 ac.set_controls_from_vector(u_out);
 
-k_g = 0; c_g = 0;
-if evalin('base','exist(''ground_k'',''var'')'), k_g = double(evalin('base','ground_k')); end
-if evalin('base','exist(''ground_c'',''var'')'), c_g = double(evalin('base','ground_c')); end
+%% Mass and CG
 
-[F_total, M_ext, fuel_flow, m] = ac.calculate_total_forces_moments_with_ground(k_g, c_g);
+[m_total, cg_body, I_body] = ac.compute_total_mass_properties(x);
 
-I_mat = ac.mass.get_inertia_matrix();
+if ac.has_frame("cg")
+    ac.update_frame_position("cg", cg_body);
+else
+    ac.add_frame("cg", ac.body_frame_name, cg_body, @(x) eye(3));
+end
+
+if ac.has_frame("gravity_cg")
+    ac.update_frame_position("gravity_cg", cg_body);
+end
+
+%% Total loads about CG
+
+old_ref = ac.reference_frame_name;
+
+try
+    ac.set_reference_frame("cg");
+
+    [F_body, M_body, fuel_flow] = ac.compute_total_loads(x, u_out);
+
+    ac.set_reference_frame(old_ref);
+
+catch ME
+    try
+        ac.set_reference_frame(old_ref);
+    catch
+    end
+
+    error("aircraft_sfunc_generalized:ForceMomentFailure", ...
+        "Failed to compute total loads at t = %.6f s.\n%s", ...
+        t, ME.message);
+end
+
+if isempty(F_body) || numel(F_body) ~= 3
+    error("aircraft_sfunc_generalized:BadForceSize", ...
+        "F_body must be 3x1.");
+end
+
+if isempty(M_body) || numel(M_body) ~= 3
+    error("aircraft_sfunc_generalized:BadMomentSize", ...
+        "M_body must be 3x1.");
+end
+
+if isempty(fuel_flow) || ~isfinite(fuel_flow)
+    fuel_flow = 0;
+end
+
 I_dot = zeros(3,3);
 
-block.OutputPort(1).Data = F_total(:);
-block.OutputPort(2).Data = M_ext(:);
+%% Outputs
+
+block.OutputPort(1).Data = F_body(:);
+block.OutputPort(2).Data = M_body(:);
 block.OutputPort(3).Data = -fuel_flow;
-block.OutputPort(4).Data = m;
+block.OutputPort(4).Data = m_total;
 block.OutputPort(5).Data = I_dot;
-block.OutputPort(6).Data = I_mat;
+block.OutputPort(6).Data = I_body;
 block.OutputPort(7).Data = x(4:6);
 
-if -x(3) < -5
-    warning('aircraft_sfunc:GroundCollision', ...
-        'GROUND COLLISION at t=%.2f s, altitude=%.1f m', t, -x(3));
+%% Debug exports
+
+assignin("base", "sfunc_last_x", x);
+assignin("base", "sfunc_last_u", u_out);
+assignin("base", "sfunc_last_F_body", F_body(:));
+assignin("base", "sfunc_last_M_body", M_body(:));
+assignin("base", "sfunc_last_mass", m_total);
+assignin("base", "sfunc_last_I_body", I_body);
+assignin("base", "sfunc_last_cg_body", cg_body);
+
+%% Ground warning
+
+altitude = -x(3);
+
+if altitude < -5
+    warning("aircraft_sfunc_generalized:GroundCollision", ...
+        "Ground collision warning at t = %.2f s, altitude = %.1f m", ...
+        t, altitude);
 end
+
+end
+
+function y = local_wrap_to_pi(x)
+
+y = mod(x + pi, 2*pi) - pi;
+
+if y == -pi
+    y = pi;
+end
+
 end

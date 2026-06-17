@@ -239,7 +239,7 @@ data.CNR = CNR;
 data.CLR = CLR;
 
 data.CLDE = 0.30;
-data.CMDE = -1.20;
+data.CMDE = -1.60;
 data.CLDA = 0.075;
 data.CNDA = 0.008;
 data.CYDR = 0.20;

@@ -217,3 +217,6 @@ classdef ControlVector < handle
 
     end
 end
+function n = num_controls(cv)
+    n = numel(cv.controls);
+end

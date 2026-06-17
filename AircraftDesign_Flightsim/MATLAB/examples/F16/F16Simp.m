@@ -1,246 +1,371 @@
+clearvars; clc;
+clear aircraft_sfunc_generalized
 
-clear; clc
+alt_trim_m       = 9144;      % 30,000 ft
+mach_trim        = 0.60;
+sim_time         = 100.0;
+dt_fc            = 0.01;
 
-if bdIsLoaded('flightsim7')
-    set_param('flightsim7', 'SimulationCommand', 'stop');
-end
+disable_rate_limiting = true;
 
-%% Aircraft Initialization
+%% Aircraft object
+
 ac = Aircraft();
 
-% All positions are defined relative to the aircraft reference point.
-% Here, the reference point is the initial CG.
-ac.set_reference_point([0 0 0]);
+%% Reference geometry
 
-%% Reference Frame Definition
-% Nose-referenced coordinates:
-%   position_cg_ref = position_nose_ref - NOSE_REF_CG
-%
-% All positions are full 3x1 body-axis vectors:
-%   x forward, y right, z down
+S_ref = 27.87;
+b_ref = 9.14;
+c_ref = 3.45;
 
-NOSE_REF_CG = [4.88; 0.00; 0.00];   % CG location in nose-referenced frame [m]
+ac.geometry.set_reference_geometry(S_ref, b_ref, c_ref);
 
-nose_nose_ref      = [0.00; 0.00; 0.00];
-wing_apex_nose_ref = [3.80; 0.00; 0.00];
-wing_ac_nose_ref   = [4.20; 0.00; 0.00];
-tank_1_nose_ref    = [4.00; 0.00; 0.00];
-tank_2_nose_ref    = [5.50; 0.00; 0.00];
-engine_nose_ref    = [6.00; 0.00; 0.00];
+nozzle_cg       = 193.0;
+nozzle_aerorp   = 189.5;
+nozzle_fueltank = 174.4;
+nozzle_engine   = 0.0;
 
-cg_to_nose      = nose_nose_ref      - NOSE_REF_CG;
-cg_to_wing_apex = wing_apex_nose_ref - NOSE_REF_CG;
-cg_to_wing_ac   = wing_ac_nose_ref   - NOSE_REF_CG;
-cg_to_tank_1    = tank_1_nose_ref    - NOSE_REF_CG;
-cg_to_tank_2    = tank_2_nose_ref    - NOSE_REF_CG;
-cg_to_engine    = engine_nose_ref    - NOSE_REF_CG;
+cg_to_aerorp = (nozzle_aerorp  - nozzle_cg) * 0.0254 * [1;0;0];
+cg_to_tank   = (nozzle_fueltank - nozzle_cg) * 0.0254 * [1;0;0];
+cg_to_engine = (nozzle_engine   - nozzle_cg) * 0.0254 * [1;0;0];
 
-%% Mass Properties
+ac.geometry.set_reference_point(cg_to_aerorp.');
+
+%% Frames
+
+ac.set_body_frame("body");
+ac.set_reference_frame("body");
+
+add_or_update_frame(ac, "aero_ref", "body", cg_to_aerorp, @(x) wind_to_body_dcm(x));
+add_or_update_frame(ac, "fuel_tank", "body", cg_to_tank, @(x) eye(3));
+add_or_update_frame(ac, "engine", "body", cg_to_engine, @(x) eye(3));
+add_or_update_frame(ac, "cg", "body", [0;0;0], @(x) eye(3));
+add_or_update_frame(ac, "gravity_cg", "body", [0;0;0], @(x) ned_to_body_dcm(x));
+
+%% Mass components
+
+slug_ft2_to_kg_m2 = 1.35582;
+
+Ixx = 9496  * slug_ft2_to_kg_m2;
+Iyy = 55814 * slug_ft2_to_kg_m2;
+Izz = 63100 * slug_ft2_to_kg_m2;
+Ixz = -982  * slug_ft2_to_kg_m2;
+
+I_body = [ Ixx  0   -Ixz;
+           0    Iyy  0;
+          -Ixz  0    Izz ];
+
 empty_mass = 9300;
+fuel_mass  = 2400;
+tank_mass  = fuel_mass / 2;
 
-Ixx = 12875;
-Iyy = 75674;
-Izz = 85552;
-Ixy = 0;
-Ixz = 1331;
-Iyz = 0;
+airframe = Component( ...
+    "airframe", ...
+    empty_mass, ...
+    [0;0;0], ...
+    I_body, ...
+    ac.get_frame("body"), ...
+    "airframe");
 
-ac.mass.set_mass_properties(empty_mass, Ixx, Iyy, Izz, Ixy, Ixz, Iyz, [0 0 0]);
+tank1 = Component( ...
+    "tank1", ...
+    tank_mass, ...
+    [0;0;0], ...
+    zeros(3,3), ...
+    ac.get_frame("fuel_tank"), ...
+    "fuel");
 
-ac.mass.add_fuel_tank(cg_to_tank_1.', 1800, 'distributed');
-ac.mass.add_fuel_tank(cg_to_tank_2.', 1200, 'distributed');
-ac.mass.set_fuel_mass(2400);
-ac.set_reference_point([0 0 0]);
+tank2 = Component( ...
+    "tank2", ...
+    tank_mass, ...
+    [0;0;0], ...
+    zeros(3,3), ...
+    ac.get_frame("fuel_tank"), ...
+    "fuel");
 
-fprintf('Aircraft reference point: [%.3f %.3f %.3f] m\n', ac.get_reference_point());
-fprintf('Current CG              : [%.3f %.3f %.3f] m\n', ac.mass.get_cg());
-fprintf('Empty mass              : %.1f kg\n', ac.mass.get_empty_mass());
-fprintf('Fuel mass               : %.1f kg\n', ac.mass.get_fuel_mass());
-fprintf('Total mass              : %.1f kg\n', ac.mass.get_total_mass());
+engine_comp = Component( ...
+    "engine", ...
+    0, ...
+    [0;0;0], ...
+    zeros(3,3), ...
+    ac.get_frame("engine"), ...
+    "engine");
 
-fprintf('Nose       : [%.2f %.2f %.2f] m from ref\n', cg_to_nose);
-fprintf('Wing apex  : [%.2f %.2f %.2f] m from ref\n', cg_to_wing_apex);
-fprintf('Wing AC    : [%.2f %.2f %.2f] m from ref\n', cg_to_wing_ac);
-fprintf('Fuel tank 1: [%.2f %.2f %.2f] m from ref\n', cg_to_tank_1);
-fprintf('Fuel tank 2: [%.2f %.2f %.2f] m from ref\n', cg_to_tank_2);
-fprintf('Engine     : [%.2f %.2f %.2f] m from ref\n', cg_to_engine);
+airframe.set_metadata("description", "F16 airframe");
+tank1.set_metadata("fuel_mass", tank_mass);
+tank2.set_metadata("fuel_mass", tank_mass);
+engine_comp.set_metadata("max_thrust", 128992);
+engine_comp.set_metadata("engine_type", "F100-PW-229");
 
-%% Geometry
-ac.geometry.wing_area = 27.87;
-ac.geometry.wing_span = 9.14;
-ac.geometry.mean_aerodynamic_chord = 3.45;
-ac.geometry.ref_point = cg_to_wing_ac.';
+ac.add_component(airframe);
+ac.add_component(tank1);
+ac.add_component(tank2);
+ac.add_component(engine_comp);
 
-%% Aerodynamics
-ac.set_aerodynamics(CoefficientAerodynamics(@F16Lookup));
+%% Controls
 
-%% Control Surfaces
-cfg = ac.get_configurator();
+aileron = ControlSurface( ...
+    "aileron", ...
+    "aileron", ...
+    "primary", ...
+    [1 0 0], ...
+    deg2rad(21.5), ...
+    deg2rad(-21.5), ...
+    0.05, 0, 0);
 
-cfg.add_control_surface('name','aileron','surface_type','aileron','classification','primary','axis',[1 0 0], ...
-    'max_deflection',deg2rad(20),'min_deflection',deg2rad(-20),'dCl',0.05,'dCm',0,'dCn',0);
+elevator = ControlSurface( ...
+    "elevator", ...
+    "elevator", ...
+    "primary", ...
+    [0 1 0], ...
+    deg2rad(25), ...
+    deg2rad(-25), ...
+    0, -0.10, 0);
 
-cfg.add_control_surface('name','elevator','surface_type','elevator','classification','primary','axis',[0 1 0], ...
-    'max_deflection',deg2rad(25),'min_deflection',deg2rad(-25),'dCl',0,'dCm',-0.10,'dCn',0);
+rudder = ControlSurface( ...
+    "rudder", ...
+    "rudder", ...
+    "primary", ...
+    [0 0 1], ...
+    deg2rad(30), ...
+    deg2rad(-30), ...
+    0, 0, -0.08);
 
-cfg.add_control_surface('name','rudder','surface_type','rudder','classification','primary','axis',[0 0 1], ...
-    'max_deflection',deg2rad(30),'min_deflection',deg2rad(-30),'dCl',0,'dCm',0,'dCn',-0.08);
+ac.add_control_surface(aileron);
+ac.add_control_surface(elevator);
+ac.add_control_surface(rudder);
 
 %% Propulsion
-cfg.add_propulsive_element('name','F100_PW_229','element_type','turbofan_afterburning','max_output',128992, ...
-    'position',cg_to_engine.','direction',[1 0 0],'fuel_rate',2.5, ...
-    'thrust_model',@(thr,M,alt,V,rho) F100ThrustModel(thr, M, alt, V, rho, 128992));
 
-%% Control Vector Setup
-n_cs = numel(ac.control_surfaces);
-n_pe = numel(ac.propulsive_elements);
-n_total = n_cs + n_pe;
+engine_pe = TurbofanPropulsion( ...
+    "F100_PW_229", ...
+    ac.get_frame("engine"), ...
+    [1;0;0], ...
+    128992, ...
+    2.5, ...
+    @(thr,M,alt,V) F100ThrustModel(thr, M, alt, V));
 
-%% Cruise Condition
-alt_cruise  = 9144;
-mach_cruise = 0.6;
-dur_cruise  = 60;
+ac.add_propulsive_element(engine_pe);
 
-[~, a, ~, ~] = atmosisa(alt_cruise);
-V_cruise = mach_cruise * a;
+prop_solver = PropulsionLoadSolver(engine_pe, ac.get_frame("engine"));
+engine_comp.add_load_source(prop_solver);
 
+%% Aerodynamics and gravity loads
 
-alpha_test = deg2rad(6);
+aero_model = CoefficientAerodynamics(@F16Lookup);
 
-x = zeros(12,1);
-x(3) = -alt_cruise;
-x(4) = V_cruise * cos(alpha_test);
-x(6) = V_cruise * sin(alpha_test);
-x(8) = alpha_test;
+aero_solver = AeroLoadSolver( ...
+    aero_model, ...
+    ac.geometry, ...
+    ac, ...
+    ac.get_frame("aero_ref"));
 
-ac.state.set_full_state(x);
-ac.control_surfaces(2).set_deflection(0);
-ac.propulsive_elements{1}.set_throttle(0.35);
+gravity_solver = GravityLoadSolver( ...
+    ac, ...
+    ac.get_frame("gravity_cg"));
+
+ac.add_load_source(aero_solver);
+ac.add_load_source(gravity_solver);
+
+%% Sync mass and CG frames
+
+[m_total, cg_total, I_total] = ac.compute_total_mass_properties(); %#ok<ASGLU>
+ac.update_frame_position("cg", cg_total);
+ac.update_frame_position("gravity_cg", cg_total);
+
+W = m_total * ac.g;
+
+fprintf("\n=== AIRCRAFT READY ===\n");
+fprintf("Mass    : %.2f kg\n", m_total);
+fprintf("Weight  : %.2f N\n", W);
+fprintf("CG body : [% .4f % .4f % .4f] m\n", cg_total);
+
+%% Initial guess
+
+[~, a_trim, ~, ~] = atmosisa(alt_trim_m);
+V_trim = mach_trim * a_trim;
+
+alpha0 = deg2rad(7.0);
+elev0  = deg2rad(-0.5);
+thr0   = 0.05;
+
+x_guess = zeros(12,1);
+x_guess(3) = -alt_trim_m;
+x_guess(4) = V_trim * cos(alpha0);
+x_guess(5) = 0;
+x_guess(6) = V_trim * sin(alpha0);
+x_guess(7) = 0;
+x_guess(8) = alpha0;
+x_guess(9) = 0;
+
+ac.state.set_full_state(x_guess);
+ac.control_surfaces(1).set_deflection(0);
+ac.control_surfaces(2).set_deflection(elev0);
+ac.control_surfaces(3).set_deflection(0);
+ac.propulsive_elements{1}.set_throttle(thr0);
 ac.sync_control_vector_from_components();
 
-[F_ref, M_ref, ~] = ac.calculate_total_forces_moments_with_gravity();
+%% Trim
 
-m = ac.mass.get_total_mass();
-g = 9.80665;
-W = m * g;
-cbar = ac.geometry.mean_aerodynamic_chord;
+fprintf("\n=== RUNNING CRUISE TRIM ===\n");
+fprintf("Altitude : %.1f m\n", alt_trim_m);
+fprintf("Mach     : %.3f\n", mach_trim);
 
-res_check = [F_ref(1)/W; F_ref(3)/W; M_ref(2)/(W*cbar)];
+ac.set_reference_frame("cg");
 
-fprintf('Test at alpha=%.1f deg, elevator=0 deg:\n', rad2deg(alpha_test));
-fprintf('  F(ref) = [%.1f %.1f %.1f] N\n', F_ref);
-fprintf('  M(ref) = [%.1f %.1f %.1f] N-m\n', M_ref);
-fprintf('  My/(Wc) = %.4f\n', res_check(3));
-
-
-
-%% Trim Solution
 solver = ac.get_trim_solver();
-solver.trim_tolerance = 1e-6;
+solver.trim_tolerance = 1e-5;
 solver.max_iterations = 15000;
-solver.use_fmincon = true;
+solver.initial_guess  = [alpha0; elev0; thr0];
+solver.debug_failures = true;
+solver.use_fmincon = exist("fmincon", "file") == 2;
 
-alpha0 = deg2rad(6.0);
-elev0  = deg2rad(-1.0);
-thr0   = 0.35;
-
-solver.initial_guess = [alpha0; elev0; thr0];
-
-
-[x_trim, u_trim, converged] = solver.solve_cruise_trim(alt_cruise, mach_cruise);
+[x_trim, u_trim, converged, info] = solver.solve_cruise_trim(alt_trim_m, mach_trim); %#ok<ASGLU>
 
 if converged
-    fprintf('\n=== TRIM CONVERGED ===\n');
-    solver.print_summary();
+    fprintf("\n=== TRIM CONVERGED ===\n");
 else
-    fprintf('\n=== TRIM FAILED - USING FALLBACK ===\n');
-
-    alpha_fb = solver.initial_guess(1);
-
-    x_trim = zeros(12,1);
-    x_trim(3) = -alt_cruise;
-    x_trim(4) = V_cruise * cos(alpha_fb);
-    x_trim(6) = V_cruise * sin(alpha_fb);
-    x_trim(8) = alpha_fb;
-
-    u_trim = zeros(n_total,1);
-    u_trim(2) = elev0;
-    u_trim(n_cs+1) = 0.5;
+    fprintf("\n=== TRIM NOT CONVERGED: using returned best solution ===\n");
 end
-%% Simulation Setup
-time_vector = linspace(0, dur_cruise, 1000);
-control_input_data = [time_vector(:), repmat(u_trim.', length(time_vector), 1)];
 
-Initialpos = x_trim(1:3).';
-InitialVel = x_trim(4:6).';
-InitialOri = x_trim(7:9).';
-InitialRot = x_trim(10:12).';
+solver.print_summary();
 
-assignin('base','ac', ac);
-assignin('base','initial_state', x_trim);
-assignin('base','Initialpos', Initialpos);
-assignin('base','InitialVel', InitialVel);
-assignin('base','InitialOri', InitialOri);
-assignin('base','InitialRot', InitialRot);
-assignin('base','n_cs', n_cs);
-assignin('base','n_pe', n_pe);
-assignin('base','n_total', n_total);
-assignin('base','control_input_data', control_input_data);
-assignin('base','sim_stop_time', dur_cruise);
+%% Final verification about CG
 
-%% Ground Contact
-ac.ground_k = 3e5;
-ac.ground_c = 5e4;
-
-%% Verification
 ac.state.set_full_state(x_trim);
 ac.set_controls_from_vector(u_trim);
 
-[F_check, M_check, ~] = ac.calculate_total_forces_moments_with_gravity();
-[F_cg, M_cg, ~] = ac.get_forces_moments_about_cg();
+[m_trim, cg_trim, I_trim] = ac.compute_total_mass_properties(x_trim); %#ok<ASGLU>
+ac.update_frame_position("cg", cg_trim);
+ac.update_frame_position("gravity_cg", cg_trim);
+ac.set_reference_frame("cg");
 
+[F_trim, M_trim, fuel_flow_trim] = ac.compute_total_loads(x_trim, u_trim); %#ok<ASGLU>
 
-fprintf('Reference pt  : [%.3f %.3f %.3f] m\n', ac.get_reference_point());
-fprintf('Total mass    : %.1f kg\n', ac.mass.get_total_mass());
-fprintf('Empty mass    : %.1f kg\n', ac.mass.get_empty_mass());
-fprintf('Fuel mass     : %.1f kg\n', ac.mass.get_fuel_mass());
-fprintf('Current CG    : [%.3f %.3f %.3f] m\n', ac.mass.get_cg());
-fprintf('Altitude      : %.1f m\n', ac.state.get_altitude());
-fprintf('Airspeed      : %.1f m/s, Mach %.2f\n', ac.state.get_airspeed(), mach_cruise);
-fprintf('Alpha / Beta  : %.2f / %.2f deg\n', rad2deg(ac.state.get_alpha()), rad2deg(ac.state.get_beta()));
-fprintf('Pitch / Roll  : %.2f / %.2f deg\n', rad2deg(x_trim(8)), rad2deg(x_trim(7)));
+W_trim = m_trim * ac.g;
+cbar_trim = ac.geometry.mean_aerodynamic_chord;
 
-fprintf('Aileron       : %.3f deg\n', rad2deg(u_trim(1)));
-fprintf('Elevator      : %.3f deg\n', rad2deg(u_trim(2)));
-fprintf('Rudder        : %.3f deg\n', rad2deg(u_trim(3)));
-fprintf('Throttle      : %.3f\n', u_trim(4));
+fprintf("\n=== TRIM VERIFICATION ABOUT CG ===\n");
+fprintf("Mass       : %.2f kg\n", m_trim);
+fprintf("CG         : [% .4f % .4f % .4f] m\n", cg_trim);
+fprintf("Alpha      : %.4f deg\n", rad2deg(atan2(x_trim(6), x_trim(4))));
+fprintf("Theta      : %.4f deg\n", rad2deg(x_trim(8)));
+fprintf("Aileron    : %.4f deg\n", rad2deg(u_trim(1)));
+fprintf("Elevator   : %.4f deg\n", rad2deg(u_trim(2)));
+fprintf("Rudder     : %.4f deg\n", rad2deg(u_trim(3)));
+fprintf("Throttle   : %.6f\n", u_trim(4));
+fprintf("F [N]      : [% .4e % .4e % .4e]\n", F_trim);
+fprintf("M [Nm]     : [% .4e % .4e % .4e]\n", M_trim);
+fprintf("Fx/W       : %.6e\n", F_trim(1) / W_trim);
+fprintf("Fz/W       : %.6e\n", F_trim(3) / W_trim);
+fprintf("My/Wc      : %.6e\n", M_trim(2) / (W_trim * cbar_trim));
 
-fprintf('Inertia tensor [kg-m^2]:\n');
+%% Simulink 
 
-I = ac.mass.get_inertia_matrix();
+n_cs    = numel(ac.control_surfaces);
+n_pe    = numel(ac.propulsive_elements);
+n_total = n_cs + n_pe;
 
-fprintf('  [%10.1f %10.1f %10.1f]\n', I(1,1), I(1,2), I(1,3));
-fprintf('  [%10.1f %10.1f %10.1f]\n', I(2,1), I(2,2), I(2,3));
-fprintf('  [%10.1f %10.1f %10.1f]\n', I(3,1), I(3,2), I(3,3));
+t_vec = (0:dt_fc:sim_time).';
 
-fuel_levels = [2400, 1800, 1200, 600, 0];
+x0 = x_trim(:);
+u0 = u_trim(:);
 
-for f = fuel_levels
+Initialpos = x0(1:3);
+InitialVel = x0(4:6);
+InitialOri = x0(7:9);
+InitialRot = x0(10:12);
 
-    ac.mass.set_fuel_mass(f);
+u_trim_mat = repmat(u0.', numel(t_vec), 1);
 
-    cg_current = ac.mass.get_cg();
-    cg_shift   = cg_current(:) - ac.get_reference_point();
+control_input_data = struct();
+control_input_data.time = t_vec;
+control_input_data.signals.values = u_trim_mat;
+control_input_data.signals.dimensions = n_total;
 
-    fprintf(['Fuel %4.0f kg -> ' ...
-             'CG = [%.3f %.3f %.3f] m, ' ...
-             'CG-ref shift = [%.2f %.2f %.2f] cm, ' ...
-             '|shift| = %.2f cm\n'], ...
-        f, ...
-        cg_current(1), cg_current(2), cg_current(3), ...
-        cg_shift(1)*100, cg_shift(2)*100, cg_shift(3)*100, ...
-        norm(cg_shift)*100);
+ground_k = ac.ground_k;
+ground_c = ac.ground_c;
 
+assignin("base", "ac", ac);
+assignin("base", "n_cs", n_cs);
+assignin("base", "n_pe", n_pe);
+assignin("base", "n_total", n_total);
+
+assignin("base", "initial_state", x0);
+assignin("base", "Initialpos", Initialpos);
+assignin("base", "InitialVel", InitialVel);
+assignin("base", "InitialOri", InitialOri);
+assignin("base", "InitialRot", InitialRot);
+
+assignin("base", "u_trim", u0);
+assignin("base", "control_input_data", control_input_data);
+
+assignin("base", "sim_stop_time", sim_time);
+assignin("base", "dt_fc", dt_fc);
+assignin("base", "disable_rate_limiting", disable_rate_limiting);
+assignin("base", "ground_k", ground_k);
+assignin("base", "ground_c", ground_c);
+
+fprintf("\n=== SIMULINK WORKSPACE ASSIGNED ===\n");
+fprintf("n_cs             = %d\n", n_cs);
+fprintf("n_pe             = %d\n", n_pe);
+fprintf("n_total          = %d\n", n_total);
+fprintf("sim_stop_time    = %.2f s\n", sim_time);
+fprintf("dt_fc            = %.4f s\n", dt_fc);
+fprintf("rate limiting off= %d\n", disable_rate_limiting);
+fprintf("x0 alpha         = %.4f deg\n", rad2deg(atan2(x0(6), x0(4))));
+
+%% Local helper functions
+
+function add_or_update_frame(ac, name, parent_name, r_parent, dcm_fn)
+    if ~ac.has_frame(name)
+        ac.add_frame(name, parent_name, r_parent(:), dcm_fn);
+    else
+        ac.update_frame_position(name, r_parent(:));
+        ac.update_frame_orientation(name, dcm_fn);
+    end
 end
 
-ac.mass.set_fuel_mass(2400);
+function C = wind_to_body_dcm(x)
+    u = x(4);
+    v = x(5);
+    w = x(6);
+
+    V = sqrt(u^2 + v^2 + w^2);
+
+    if V < 1e-9
+        C = eye(3);
+        return;
+    end
+
+    alpha = atan2(w, u);
+    beta  = asin(max(-1, min(1, v / V)));
+
+    ca = cos(alpha);
+    sa = sin(alpha);
+    cb = cos(beta);
+    sb = sin(beta);
+
+    C = [ca*cb, -ca*sb, -sa;
+         sb,     cb,      0;
+         sa*cb, -sa*sb,  ca];
+end
+
+function C = ned_to_body_dcm(x)
+    phi   = x(7);
+    theta = x(8);
+    psi   = x(9);
+
+    cp = cos(phi);
+    sp = sin(phi);
+
+    ct = cos(theta);
+    st = sin(theta);
+
+    cs = cos(psi);
+    ss = sin(psi);
+
+    C = [ ct*cs,              ct*ss,             -st;
+          sp*st*cs-cp*ss,     sp*st*ss+cp*cs,    sp*ct;
+          cp*st*cs+sp*ss,     cp*st*ss-sp*cs,    cp*ct ];
+end

@@ -1,109 +1,81 @@
-function out = F100ThrustModel(throttle, M, alt_m, V, rho, max_thrust_N)
-% F100THRUSTMODEL  F-100 style thrust lookup for F-16 propulsion.
-%
-%   Returns a struct compatible with TurbofanPropulsion:
-%     out.thrust      - scalar thrust [N]
-%     out.fuel_flow   - fuel flow [kg/s]
-%     out.direction   - optional body-axis thrust direction []
-%     out.moment_body - optional local/reaction moment [N-m]
-%
-%   Lookup tables are in lbf and converted to N.
-%   Thrust is interpolated over Mach number and altitude.
-%   throttle:
-%     0.0 to 0.8 -> idle to military power
-%     0.8 to 1.0 -> military to max/afterburner
+function T = F100ThrustModel(thr, M, alt_m, ~, ~)
+% F100-PW-229 thrust model from engine deck tables
+% thr : 0-1 (0=idle, 0.5=military, 1=max/augmented)
+% M   : Mach number
+% alt_m: altitude in metres
 
-persistent mach_idle mach_mil mach_max altitude_range idle_T mil_T max_T
+alt_ft = alt_m / 0.3048;
 
-if isempty(mach_idle)
-    altitude_range = [-10000, 0, 10000, 20000, 30000, 40000, 50000, 60000] * 0.3048;
+mil_thrust_lbf = 17800;
+max_thrust_lbf = 29000;
+lbf_to_N       = 4.44822;
 
-    mach_idle = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
-    idle_thrust_lbf = [
-        766   870   941  1236  1602  2107  2612     0;
-        890   893   597   969  1420  1868  2391     0;
-         71    84    36   484  1060  1588  2143     0;
-      -1431 -1431  -998  -422   492  1279  1911     0;
-      -3790 -3790 -2668 -1825   844  1546  1603     0;
-      -5057 -5057 -1966  -835  -481   983  1425     0];
+%% Idle thrust fraction table
+mach_idle = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
+alt_idle  = [-10000, 0, 10000, 20000, 30000, 40000, 50000, 60000];
+idle_table = [
+     0.0430  0.0488  0.0528  0.0694  0.0899  0.1183  0.1467  0.0;
+     0.0500  0.0501  0.0335  0.0544  0.0797  0.1049  0.1342  0.0;
+     0.0040  0.0047  0.0020  0.0272  0.0595  0.0891  0.1203  0.0;
+    -0.0804 -0.0804 -0.0560 -0.0237  0.0276  0.0718  0.1073  0.0;
+    -0.2129 -0.2129 -0.1498 -0.1025  0.0474  0.0868  0.0900  0.0;
+    -0.2839 -0.2839 -0.1104 -0.0469 -0.0270  0.0552  0.0800  0.0];
 
-    mach_mil = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4];
-    mil_thrust_lbf = [
-       22428 17800 13172  9505  6622  4290  2652     0;
-       20844 16633 12412  9007  6321  4112  2545     0;
-       20470 16394 12318  9007  6355  4149  2581     0;
-       21022 16928 12834  9470  6728  4414  2742     0;
-       22393 18156 13922 10360  7423  4895  3026     0;
-       24368 19936 15504 11590  8455  5607  3471     0;
-       26433 21894 17355 13243  9701  6479  4005     0;
-       28375 23852 19331 15041 11178  7548  4682     0];
+%% Military thrust fraction table
+mach_mil = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4];
+alt_mil  = [-10000, 0, 10000, 20000, 30000, 40000, 50000, 60000];
+mil_table = [
+    1.2600  1.0000  0.7400  0.5340  0.3720  0.2410  0.1490  0.0;
+    1.1710  0.9340  0.6970  0.5060  0.3550  0.2310  0.1430  0.0;
+    1.1500  0.9210  0.6920  0.5060  0.3570  0.2330  0.1450  0.0;
+    1.1810  0.9510  0.7210  0.5320  0.3780  0.2480  0.1540  0.0;
+    1.2580  1.0200  0.7820  0.5820  0.4170  0.2750  0.1700  0.0;
+    1.3690  1.1200  0.8710  0.6510  0.4750  0.3150  0.1950  0.0;
+    1.4850  1.2300  0.9750  0.7440  0.5450  0.3640  0.2250  0.0;
+    1.5941  1.3400  1.0860  0.8450  0.6280  0.4240  0.2630  0.0];
 
-    mach_max = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6];
-    max_thrust_lbf = [
-       34267 29000 23732 19219 15312 10893  6748     0;
-       32794 27857 22878 18578 14836 10572  6548     0;
-       32335 27475 22619 18386 14703 10485  6496     0;
-       32738 27809 22890 18618 14889 10617  6578     0;
-       33951 28833 23709 19277 15397 10974  6800     0;
-       35991 30234 24837 20106 16038 11418  7075     0;
-       38373 31947 26447 21602 17220 12241  7583     0;
-       41647 34879 29213 23686 18924 13453  8340     0;
-       45564 38454 31344 25230 19935 14094  8732     0;
-       50176 42278 34385 27585 21736 15339  9503     0;
-       53131 45530 37950 30374 23827 16779 10398     0;
-       57106 49002 40922 35952 26390 18441 11426     0;
-       60028 52200 44370 38860 29000 20880 13340     0;
-       63800 55680 47552 41760 31900 23200 15080     0];
+%% Augmented thrust fraction table
+mach_aug = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6];
+alt_aug  = [-10000, 0, 10000, 20000, 30000, 40000, 50000, 60000];
+aug_table = [
+    1.1816  1.0000  0.8184  0.6627  0.5280  0.3756  0.2327  0.0;
+    1.1308  0.9599  0.7890  0.6406  0.5116  0.3645  0.2258  0.0;
+    1.1150  0.9474  0.7798  0.6340  0.5070  0.3615  0.2240  0.0;
+    1.1284  0.9589  0.7894  0.6420  0.5134  0.3661  0.2268  0.0;
+    1.1707  0.9942  0.8177  0.6647  0.5309  0.3784  0.2345  0.0;
+    1.2411  1.0529  0.8648  0.7017  0.5596  0.3983  0.2467  0.0;
+    1.3287  1.1254  0.9221  0.7462  0.5936  0.4219  0.2614  0.0;
+    1.4365  1.2149  0.9933  0.8021  0.6360  0.4509  0.2794  0.0;
+    1.5711  1.3260  1.0809  0.8700  0.6874  0.4860  0.3011  0.0;
+    1.7301  1.4579  1.1857  0.9512  0.7495  0.5289  0.3277  0.0;
+    1.8314  1.5700  1.3086  1.0474  0.8216  0.5786  0.3585  0.0;
+    1.9700  1.6900  1.4100  1.2400  0.9100  0.6359  0.3940  0.0;
+    2.0700  1.8000  1.5300  1.3400  1.0000  0.7200  0.4600  0.0;
+    2.2000  1.9200  1.6400  1.4400  1.1000  0.8000  0.5200  0.0];
 
-    idle_T = idle_thrust_lbf * 4.44822;
-    mil_T  = mil_thrust_lbf  * 4.44822;
-    max_T  = max_thrust_lbf  * 4.44822;
-end
+%% Clamp inputs
+M       = max(0, min(M, 1.4));
+alt_ft  = max(-10000, min(alt_ft, 50000));
+thr     = max(0, min(thr, 1.0));
 
-if nargin < 6 || isempty(max_thrust_N)
-    max_thrust_N = inf;
-end
+%% Interpolate each regime
+f_idle = interp2(alt_idle, mach_idle, idle_table, alt_ft, M, 'linear', 0);
+f_mil  = interp2(alt_mil,  mach_mil,  mil_table,  alt_ft, M, 'linear', 0);
+f_aug  = interp2(alt_aug,  mach_aug,  aug_table,  alt_ft, min(M,1.4), 'linear', 0);
 
-throttle = max(0, min(1, throttle));
-alt_limited = max(altitude_range(1), min(altitude_range(end), alt_m));
-M = max(0, M);
+T_idle = f_idle * mil_thrust_lbf * lbf_to_N;
+T_mil  = f_mil  * mil_thrust_lbf * lbf_to_N;
+T_aug  = f_aug  * max_thrust_lbf * lbf_to_N;
 
-mach_idle_q = max(mach_idle(1), min(mach_idle(end), M));
-mach_mil_q  = max(mach_mil(1),  min(mach_mil(end),  M));
-mach_max_q  = max(mach_max(1),  min(mach_max(end),  M));
-
-idle_thrust = interp2(altitude_range, mach_idle, idle_T, alt_limited, mach_idle_q, 'linear', 0);
-mil_thrust  = interp2(altitude_range, mach_mil,  mil_T,  alt_limited, mach_mil_q,  'linear', 0);
-max_thrust  = interp2(altitude_range, mach_max,  max_T,  alt_limited, mach_max_q,  'linear', 0);
-
-if throttle <= 0.8
-    tau = throttle / 0.8;
-    T = idle_thrust + tau * (mil_thrust - idle_thrust);
+%% Blend between regimes based on throttle
+% thr 0.0 - 0.5 : idle to military
+% thr 0.5 - 1.0 : military to augmented
+if thr <= 0.5
+    t = thr / 0.5;
+    T = T_idle + t * (T_mil - T_idle);
 else
-    tau = (throttle - 0.8) / 0.2;
-    T = mil_thrust + tau * (max_thrust - mil_thrust);
+    t = (thr - 0.5) / 0.5;
+    T = T_mil + t * (T_aug - T_mil);
 end
 
-T = max(0, T);
-T = min(T, max_thrust_N);
-
-TSFC_idle = 0.8;
-TSFC_mil  = 0.74;
-TSFC_max  = 2.05;
-
-if throttle <= 0.8
-    tau = throttle / 0.8;
-    TSFC = TSFC_idle + tau * (TSFC_mil - TSFC_idle);
-else
-    tau = (throttle - 0.8) / 0.2;
-    TSFC = TSFC_mil + tau * (TSFC_max - TSFC_mil);
-end
-
-fuel_flow = (T / 9.80665) * (TSFC / 3600);
-
-out = struct();
-out.thrust      = T;
-out.fuel_flow   = fuel_flow;
-out.direction   = [];
-out.moment_body = zeros(3,1);
 end
