@@ -18,84 +18,6 @@ addpath(genpath(fullfile(matlab_root_dir,'examples')));
 
 %% AIRCRAFT DEFINITION
 % Geometry, mass properties, frames, controls, propulsion and load sources.
-[aircraft,engine] = defineF16Aircraft();
-
-%% PERFORMANCE ANALYSIS CONFIGURATION
-% Flight conditions, grids, limits, solver options and trim bounds.
-
-setup = F16PerformanceConfig(aircraft);
-performance = aircraft.get_performance();
-
-condition = setup.condition;
-cfg = setup.performance;
-solver = setup.solver;
-fast_solver = setup.fast_solver;
-bounds = setup.bounds;
-
-%% DRY-POWER PERFORMANCE
-% Every result below is returned directly by PerformanceAnalysis.
-
-engine.set_rating_mode("dry");
-
-results.dry.stall = performance.optimize_stall_speed(condition,solver,cfg,bounds.stall);
-results.dry.best_range = performance.optimize_paper_best_range(condition,solver,cfg,bounds.range);
-results.dry.best_endurance = performance.optimize_paper_best_endurance(condition,solver,cfg,bounds.endurance);
-results.glide = performance.analyze_glide_performance(condition,solver,cfg,bounds.glide);
-results.dry.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
-results.dry.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
-
-%% AFTERBURNER PERFORMANCE
-% Climb, maximum speed, required/available curves and sustained turns.
-
-engine.set_rating_mode("afterburner");
-
-results.afterburner.best_angle_climb = performance.optimize_best_angle_climb(condition,solver,cfg,bounds.climb);
-results.afterburner.best_rate_climb = performance.optimize_best_rate_climb(condition,solver,cfg,bounds.climb);
-results.afterburner.maximum_level_speed = performance.optimize_max_level_speed(condition,solver,cfg,bounds.maximum_speed);
-results.afterburner.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
-results.afterburner.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
-results.turn.sustained_curve = performance.compute_sustained_turn_curve(condition,setup.turn_velocity_grid_mps,fast_solver,cfg,bounds.turn);
-results.turn.sustained_optimum = performance.optimize_sustained_turn(condition,solver,cfg,bounds.turn);
-results.turn.coordinated = performance.optimize_coordinated_turn(setup.turn_condition,setup.coordinated_turn_bank_deg, solver,cfg,bounds.turn);
-
-%% MANEUVER AND GUST ENVELOPES
-
-results.envelope.accelerated_stall = performance.compute_accelerated_stall(condition,setup.accelerated_stall_load_factors,cfg);
-results.envelope.vn = performance.compute_vn_diagram(condition,setup.envelope_velocity_grid_mps,cfg);
-results.envelope.gust = performance.compute_gust_envelope(condition,setup.envelope_velocity_grid_mps,setup.gust);
-results.turn.instantaneous = performance.compute_instantaneous_turn_curve(condition,setup.turn_velocity_grid_mps,cfg);
-
-%% ENERGY-MANEUVERABILITY AND ACCELERATION
-
-results.energy.Ps_map = performance.compute_specific_excess_power_map(condition,setup.Ps_velocity_grid_mps,setup.Ps_load_factors, fast_solver,cfg,bounds.turn);
-results.energy.acceleration = performance.compute_acceleration_schedule(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.maximum_speed);
-
-%% ALTITUDE ENVELOPE, CLIMB SCHEDULE AND CEILINGS
-
-results.altitude.mach_envelope = performance.compute_mach_altitude_envelope(condition,setup.altitude_grid_m,solver,cfg,bounds.envelope);
-results.altitude.climb = performance.optimize_climb_schedule(condition,setup.altitude_grid_m,solver,cfg,bounds.climb);
-
-%% COLLECT COMPLETE FRAMEWORK OUTPUTS
-% Trim states, control vectors and control summaries remain inside point_opt.
-
-results.aircraft = aircraft;
-results.engine = engine;
-results.setup = setup;
-
-%% PERFORMANCE SUMMARY
-% Values and control vectors are extracted directly from point_opt results.
-
-printF16PerformanceSummary(results);
-
-%% PERFORMANCE PLOTS
-% Plot only fields already calculated and returned by PerformanceAnalysis.
-
-plotF16Performance(results);
-
-F16Performance = results;
-
-%% LOCAL AIRCRAFT-DEFINITION FUNCTION
-function [aircraft,engine] = defineF16Aircraft()
 
 %% Reference geometry and mass properties
 
@@ -172,7 +94,147 @@ aircraft.update_frame_position("cg",cg_body_m);
 aircraft.update_frame_position("gravity_cg",cg_body_m);
 aircraft.set_reference_frame("cg");
 
+%% PERFORMANCE ANALYSIS CONFIGURATION
+% Flight conditions, grids, limits, solver options and trim bounds.
+
+setup = F16PerformanceConfig(aircraft);
+performance = aircraft.get_performance();
+
+condition = setup.condition;
+cfg = setup.performance;
+solver = setup.solver;
+fast_solver = setup.fast_solver;
+bounds = setup.bounds;
+
+%% DRY-POWER PERFORMANCE
+% Every result below is returned directly by PerformanceAnalysis.
+
+engine.set_rating_mode("dry");
+
+results.dry.stall = performance.optimize_stall_speed(condition,solver,cfg,bounds.stall);
+results.dry.best_range = performance.optimize_paper_best_range(condition,solver,cfg,bounds.range);
+results.dry.best_endurance = performance.optimize_paper_best_endurance(condition,solver,cfg,bounds.endurance);
+results.glide = performance.analyze_glide_performance(condition,solver,cfg,bounds.glide);
+results.dry.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
+results.dry.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
+
+%% BASELINE TRIM AND STABILITY
+% Dry rating, matching a subsonic cruise condition (no afterburner needed
+% at Ma 0.6). Same Brandt-lookup / BrandtAfterburningEngine aircraft
+% object used for performance above; no separate F16Lookup/
+% TurbofanPropulsion model.
+
+[~,a_baseline,~,~] = aircraft.get_atmosphere(setup.baseline_altitude_m);
+V_baseline_mps = setup.baseline_mach*a_baseline;
+baseline_condition = struct('altitude_m',setup.baseline_altitude_m,'velocity_mps',V_baseline_mps);
+
+fprintf("\n=== F-16 BASELINE CRUISE TRIM ===\n");
+fprintf("Altitude : %.1f m\n",setup.baseline_altitude_m);
+fprintf("Mach     : %.3f\n",setup.baseline_mach);
+fprintf("V        : %.3f m/s\n",V_baseline_mps);
+
+[baseline_x,baseline_u,baseline_converged,baseline_info] = performance.solve_trim(baseline_condition,setup.level_spec,solver);
+baseline = performance.evaluate_trim_point(baseline_x,baseline_u,baseline_condition,cfg,baseline_info.extras);
+baseline.trim_converged = baseline_converged;
+baseline.trim_info = baseline_info;
+
+performance.print_point(baseline);
+
+fprintf("\n=== F-16 STABILITY ANALYSIS ===\n");
+
+stab = aircraft.get_stability();
+stab.set_trim(baseline_x,baseline_u);
+
+[~,~,Cm_alpha] = stab.compute_pitch_static_stability(deg2rad(-5:0.5:15));
+[~,~,Cn_beta] = stab.compute_yaw_static_stability(deg2rad(-10:0.5:10));
+
+stab.linearize(1e-5,1e-5);
+stab.analyze_modes();
+
+try
+    stab.print_modes();
+catch
 end
+
+fprintf("\n=== F-16 STATIC STABILITY ===\n");
+fprintf("Cm_alpha : %.6f 1/rad\n",Cm_alpha);
+fprintf("Cn_beta  : %.6f 1/rad\n",Cn_beta);
+
+results.baseline = baseline;
+results.stability = struct('stab',stab,'Cm_alpha',Cm_alpha,'Cn_beta',Cn_beta);
+
+%% AFTERBURNER PERFORMANCE
+% Climb, maximum speed, required/available curves and sustained turns.
+
+engine.set_rating_mode("afterburner");
+
+results.afterburner.best_angle_climb = performance.optimize_best_angle_climb(condition,solver,cfg,bounds.climb);
+results.afterburner.best_rate_climb = performance.optimize_best_rate_climb(condition,solver,cfg,bounds.climb);
+results.afterburner.maximum_level_speed = performance.optimize_max_level_speed(condition,solver,cfg,bounds.maximum_speed);
+results.afterburner.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
+results.afterburner.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
+results.turn.sustained_curve = performance.compute_sustained_turn_curve(condition,setup.turn_velocity_grid_mps,fast_solver,cfg,bounds.turn);
+results.turn.sustained_optimum = performance.optimize_sustained_turn(condition,solver,cfg,bounds.turn);
+results.turn.coordinated = performance.optimize_coordinated_turn(setup.turn_condition,setup.coordinated_turn_bank_deg, solver,cfg,bounds.turn);
+
+%% TAKEOFF AND LANDING
+% Same aircraft object; takeoff uses the afterburner rating already
+% active above, landing switches to idle.
+
+fprintf("\n=== F-16 TAKEOFF ANALYSIS ===\n");
+
+to = aircraft.get_takeoff();
+[TO_m,to_res] = to.calculate_takeoff(0,0,3000); %#ok<NASGU>
+to.print_takeoff_summary(to_res);
+
+fprintf("\n=== F-16 LANDING ANALYSIS ===\n");
+
+engine.set_rating_mode("idle");
+
+ld = aircraft.get_landing();
+[LD_m,ld_res] = ld.calculate_landing(0,0,3000); %#ok<NASGU>
+ld.print_landing_summary(ld_res);
+
+engine.set_rating_mode("afterburner");
+
+results.takeoff = to_res;
+results.landing = ld_res;
+
+%% MANEUVER AND GUST ENVELOPES
+
+results.envelope.accelerated_stall = performance.compute_accelerated_stall(condition,setup.accelerated_stall_load_factors,cfg);
+results.envelope.vn = performance.compute_vn_diagram(condition,setup.envelope_velocity_grid_mps,cfg);
+results.envelope.gust = performance.compute_gust_envelope(condition,setup.envelope_velocity_grid_mps,setup.gust);
+results.turn.instantaneous = performance.compute_instantaneous_turn_curve(condition,setup.turn_velocity_grid_mps,cfg);
+
+%% ENERGY-MANEUVERABILITY AND ACCELERATION
+
+results.energy.Ps_map = performance.compute_specific_excess_power_map(condition,setup.Ps_velocity_grid_mps,setup.Ps_load_factors, fast_solver,cfg,bounds.turn);
+results.energy.acceleration = performance.compute_acceleration_schedule(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.maximum_speed);
+
+%% ALTITUDE ENVELOPE, CLIMB SCHEDULE AND CEILINGS
+
+results.altitude.mach_envelope = performance.compute_mach_altitude_envelope(condition,setup.altitude_grid_m,solver,cfg,bounds.envelope);
+results.altitude.climb = performance.optimize_climb_schedule(condition,setup.altitude_grid_m,solver,cfg,bounds.climb);
+
+%% COLLECT COMPLETE FRAMEWORK OUTPUTS
+% Trim states, control vectors and control summaries remain inside point_opt.
+
+results.aircraft = aircraft;
+results.engine = engine;
+results.setup = setup;
+
+%% PERFORMANCE SUMMARY
+% Values and control vectors are extracted directly from point_opt results.
+
+printF16PerformanceSummary(results);
+
+%% PERFORMANCE PLOTS
+% Plot only fields already calculated and returned by PerformanceAnalysis.
+
+plotF16Performance(results);
+
+F16Performance = results;
 
 %% LOCAL PERFORMANCE-CONFIGURATION FUNCTION
 function setup = F16PerformanceConfig(aircraft)
@@ -182,6 +244,9 @@ function setup = F16PerformanceConfig(aircraft)
 setup.condition = struct('altitude_m',9000);
 setup.turn_condition = struct('altitude_m',9000,'velocity_mps',250);
 setup.coordinated_turn_bank_deg = 60;
+
+setup.baseline_altitude_m = 9144;
+setup.baseline_mach = 0.600;
 
 setup.velocity_grid_mps = (140:10:550).';
 setup.turn_velocity_grid_mps = (150:15:330).';
