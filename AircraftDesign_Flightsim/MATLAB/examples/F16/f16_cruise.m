@@ -1,369 +1,391 @@
-clearvars; clc;
-clear aircraft_sfunc_generalized
+%% F16_Steady_Level_Trim.m
+% Finds one steady, wings-level, constant-speed trim condition.
+%
+% Trim unknowns:
+%   alpha
+%   stabilator deflection
+%   throttle
+%
+% Trim equations:
+%   Fx = 0
+%   Fz = 0
+%   My = 0
+%
+% Steady level assumptions:
+%   beta  = 0
+%   gamma = 0
+%   phi   = 0
+%   p     = 0
+%   q     = 0
+%   r     = 0
+%   aileron = 0
+%   rudder  = 0
 
-alt_trim_m       = 9144;      % 30,000 ft
-mach_trim        = 0.60;
-sim_time         = 100.0;
-dt_fc            = 0.01;
+clear;
+clc;
+close all;
+clear classes;
+clear functions;
+rehash toolboxcache;
 
-disable_rate_limiting = true;
+%% PATH BOOTSTRAP
+% Ensures the shared class library and example helper functions are on the
+% MATLAB path regardless of the current working directory or session state.
+this_script_dir = fileparts(mfilename('fullpath'));
+matlab_root_dir = fileparts(fileparts(this_script_dir));
+addpath(genpath(fullfile(matlab_root_dir,'classes')));
+addpath(genpath(fullfile(matlab_root_dir,'examples')));
 
-%% Aircraft object
+%% Aircraft geometry
 
-ac = Aircraft();
+S=300*0.09290304;
+b=30*0.3048;
+c=11.3201786951274*0.3048;
 
-%% Reference geometry
+ac=Aircraft();
 
-S_ref = 27.87;
-b_ref = 9.14;
-c_ref = 3.45;
+ac.geometry.set_reference_geometry(S,b,c);
+ac.geometry.set_reference_point([0 0 0]);
 
-ac.geometry.set_reference_geometry(S_ref, b_ref, c_ref);
+%% Aircraft mass properties
 
-nozzle_cg       = 193.0;
-nozzle_aerorp   = 189.5;
-nozzle_fueltank = 174.4;
-nozzle_engine   = 0.0;
+lbfN=4.4482216152605;
+g=9.80665;
 
-cg_to_aerorp = (nozzle_aerorp  - nozzle_cg) * 0.0254 * [1;0;0];
-cg_to_tank   = (nozzle_fueltank - nozzle_cg) * 0.0254 * [1;0;0];
-cg_to_engine = (nozzle_engine   - nozzle_cg) * 0.0254 * [1;0;0];
+Wlbf=0.899666962714079*31377;
+Wfuel=max(Wlbf-20680.7005781593,0);
+Weng=0.199*23770;
+Wair=Wlbf-Wfuel-Weng;
 
-ac.geometry.set_reference_point(cg_to_aerorp.');
+mair=Wair*lbfN/g;
+mfuel=Wfuel*lbfN/g;
+meng=Weng*lbfN/g;
 
-%% Frames
+scale=Wlbf/20500;
+k=1.3558179483314;
 
-ac.set_body_frame("body");
-ac.set_reference_frame("body");
+I=scale*[9496*k,0,982*k; 0,55814*k,0; 982*k,0,63100*k];
 
-add_or_update_frame(ac, "aero_ref", "body", cg_to_aerorp, @(x) wind_to_body_dcm(x));
-add_or_update_frame(ac, "fuel_tank", "body", cg_to_tank, @(x) eye(3));
-add_or_update_frame(ac, "engine", "body", cg_to_engine, @(x) eye(3));
-add_or_update_frame(ac, "cg", "body", [0;0;0], @(x) eye(3));
-add_or_update_frame(ac, "gravity_cg", "body", [0;0;0], @(x) ned_to_body_dcm(x));
+%% Aircraft reference frames
 
-%% Mass components
+ac.add_frame("fuel_tank", "body", [0;0;0], @(x) eye(3));
 
-slug_ft2_to_kg_m2 = 1.35582;
+ac.add_frame("engine", "body", [0;0;0], @(x) eye(3));
 
-Ixx = 9496  * slug_ft2_to_kg_m2;
-Iyy = 55814 * slug_ft2_to_kg_m2;
-Izz = 63100 * slug_ft2_to_kg_m2;
-Ixz = -982  * slug_ft2_to_kg_m2;
+ac.add_frame("cg", "body", [0;0;0], @(x) eye(3));
 
-I_body = [ Ixx  0   -Ixz;
-           0    Iyy  0;
-          -Ixz  0    Izz ];
+ac.add_frame("gravity_cg", "body", [0;0;0], @(x) ReferenceFrame.ned_to_body_dcm(x));
 
-empty_mass = 9300;
-fuel_mass  = 2400;
-tank_mass  = fuel_mass / 2;
+%% Aircraft components
 
-airframe = Component( ...
-    "airframe", ...
-    empty_mass, ...
-    [0;0;0], ...
-    I_body, ...
-    ac.get_frame("body"), ...
-    "airframe");
+airframe=Component("airframe", mair, [0;0;0], I, ac.get_frame("body"), "airframe");
 
-tank1 = Component( ...
-    "tank1", ...
-    tank_mass, ...
-    [0;0;0], ...
-    zeros(3,3), ...
-    ac.get_frame("fuel_tank"), ...
-    "fuel");
+fuel=Component("fuel", mfuel, [0;0;0], zeros(3), ac.get_frame("fuel_tank"), "fuel");
 
-tank2 = Component( ...
-    "tank2", ...
-    tank_mass, ...
-    [0;0;0], ...
-    zeros(3,3), ...
-    ac.get_frame("fuel_tank"), ...
-    "fuel");
-
-engine_comp = Component( ...
-    "engine", ...
-    0, ...
-    [0;0;0], ...
-    zeros(3,3), ...
-    ac.get_frame("engine"), ...
-    "engine");
-
-airframe.set_metadata("description", "F16 airframe");
-tank1.set_metadata("fuel_mass", tank_mass);
-tank2.set_metadata("fuel_mass", tank_mass);
-engine_comp.set_metadata("max_thrust", 128992);
-engine_comp.set_metadata("engine_type", "F100-PW-229");
+engine_component=Component("engine", meng, [0;0;0], zeros(3), ac.get_frame("engine"), "engine");
 
 ac.add_component(airframe);
-ac.add_component(tank1);
-ac.add_component(tank2);
-ac.add_component(engine_comp);
+ac.add_component(fuel);
+ac.add_component(engine_component);
 
-%% Controls
+%% Control surfaces
 
-aileron = ControlSurface( ...
-    "aileron", ...
-    "aileron", ...
-    "primary", ...
-    [1 0 0], ...
-    deg2rad(21.5), ...
-    deg2rad(-21.5), ...
-    0.05, 0, 0);
+aileron=ControlSurface("aileron", "aileron", "primary", [1 0 0], deg2rad(21.5), deg2rad(-21.5), 0, 0, 0);
 
-elevator = ControlSurface( ...
-    "elevator", ...
-    "elevator", ...
-    "primary", ...
-    [0 1 0], ...
-    deg2rad(25), ...
-    deg2rad(-25), ...
-    0, -0.10, 0);
+stabilator=ControlSurface("stabilator", "elevator", "primary", [0 1 0], deg2rad(25), deg2rad(-25), 0, 0, 0);
 
-rudder = ControlSurface( ...
-    "rudder", ...
-    "rudder", ...
-    "primary", ...
-    [0 0 1], ...
-    deg2rad(30), ...
-    deg2rad(-30), ...
-    0, 0, -0.08);
+rudder=ControlSurface("rudder", "rudder", "primary", [0 0 1], deg2rad(30), deg2rad(-30), 0, 0, 0);
 
 ac.add_control_surface(aileron);
-ac.add_control_surface(elevator);
+ac.add_control_surface(stabilator);
 ac.add_control_surface(rudder);
 
-%% Propulsion
+%% Propulsion model
 
-engine_pe = TurbofanPropulsion( ...
-    "F100_PW_229", ...
-    ac.get_frame("engine"), ...
-    [1;0;0], ...
-    128992, ...
-    2.5, ...
-    @(thr,M,alt,V) F100ThrustModel(thr, M, alt, V));
+engine=BrandtAfterburningEngine("F16A_engine", ac.get_frame("engine"), [1;0;0]);
 
-ac.add_propulsive_element(engine_pe);
+engine.set_rating_mode("dry");
 
-prop_solver = PropulsionLoadSolver(engine_pe, ac.get_frame("engine"));
-engine_comp.add_load_source(prop_solver);
+ac.add_propulsive_element(engine);
 
-%% Aerodynamics and gravity loads
+engine_load_solver=PropulsionLoadSolver(engine, ac.get_frame("engine"));
 
-aero_model = CoefficientAerodynamics(@F16Lookup);
+engine_component.add_load_source(engine_load_solver);
 
-aero_solver = AeroLoadSolver( ...
-    aero_model, ...
-    ac.geometry, ...
-    ac, ...
-    ac.get_frame("aero_ref"));
+%% Aerodynamic model
 
-gravity_solver = GravityLoadSolver( ...
-    ac, ...
-    ac.get_frame("gravity_cg"));
+aero=CoefficientAerodynamics(@F16ABrandtLookup);
 
-ac.add_load_source(aero_solver);
-ac.add_load_source(gravity_solver);
+aero_load_solver=AeroLoadSolver(aero, ac.geometry, ac, ac.get_frame("body"));
 
-%% Sync mass and CG frames
+ac.add_load_source(aero_load_solver);
 
-[m_total, cg_total, I_total] = ac.compute_total_mass_properties(); %#ok<ASGLU>
-ac.update_frame_position("cg", cg_total);
-ac.update_frame_position("gravity_cg", cg_total);
+%% Gravity model
 
-W = m_total * ac.g;
+gravity_load_solver=GravityLoadSolver(ac, ac.get_frame("gravity_cg"));
 
-fprintf("\n=== AIRCRAFT READY ===\n");
-fprintf("Mass    : %.2f kg\n", m_total);
-fprintf("Weight  : %.2f N\n", W);
-fprintf("CG body : [% .4f % .4f % .4f] m\n", cg_total);
+ac.add_load_source(gravity_load_solver);
 
-%% Initial guess
+%% Update CG reference
 
-[~, a_trim, ~, ~] = atmosisa(alt_trim_m);
-V_trim = mach_trim * a_trim;
+[mass,cg,Icg]=ac.compute_total_mass_properties();
 
-alpha0 = deg2rad(7.0);
-elev0  = deg2rad(-0.5);
-thr0   = 0.05;
-
-x_guess = zeros(12,1);
-x_guess(3) = -alt_trim_m;
-x_guess(4) = V_trim * cos(alpha0);
-x_guess(5) = 0;
-x_guess(6) = V_trim * sin(alpha0);
-x_guess(7) = 0;
-x_guess(8) = alpha0;
-x_guess(9) = 0;
-
-ac.state.set_full_state(x_guess);
-ac.control_surfaces(1).set_deflection(0);
-ac.control_surfaces(2).set_deflection(elev0);
-ac.control_surfaces(3).set_deflection(0);
-ac.propulsive_elements{1}.set_throttle(thr0);
-ac.sync_control_vector_from_components();
-
-%% Trim
-
-fprintf("\n=== RUNNING CRUISE TRIM ===\n");
-fprintf("Altitude : %.1f m\n", alt_trim_m);
-fprintf("Mach     : %.3f\n", mach_trim);
-
+ac.update_frame_position("cg",cg);
+ac.update_frame_position("gravity_cg",cg);
 ac.set_reference_frame("cg");
 
-solver = ac.get_trim_solver();
-solver.trim_tolerance = 1e-5;
-solver.max_iterations = 15000;
-solver.initial_guess  = [alpha0; elev0; thr0];
-solver.debug_failures = true;
-solver.use_fmincon = exist("fmincon", "file") == 2;
+weight_N=mass*ac.g;
 
-[x_trim, u_trim, converged, info] = solver.solve_cruise_trim(alt_trim_m, mach_trim); %#ok<ASGLU>
+fprintf("\n=== F-16 MODEL ===\n");
+fprintf("Mass   : %.2f kg\n",mass);
+fprintf("Weight : %.2f N\n",weight_N);
+fprintf("CG     : [% .4f % .4f % .4f] m\n",cg);
 
-if converged
-    fprintf("\n=== TRIM CONVERGED ===\n");
+%% Flight condition
+
+altitude_m=9000;
+
+% Select one speed-input mode:
+speed_input_mode="mach";
+
+mach=0.80;
+velocity_mps=250;
+
+condition=struct();
+condition.altitude_m=altitude_m;
+
+if speed_input_mode=="mach"
+
+    condition.mach=mach;
+
+    [~,speed_of_sound_mps,~,~]= atmosisa(altitude_m);
+
+    commanded_velocity_mps= mach*speed_of_sound_mps;
+
+elseif speed_input_mode=="velocity"
+
+    condition.velocity_mps=velocity_mps;
+    commanded_velocity_mps=velocity_mps;
+
+    [~,speed_of_sound_mps,~,~]= atmosisa(altitude_m);
+
+    mach=velocity_mps/speed_of_sound_mps;
+
 else
-    fprintf("\n=== TRIM NOT CONVERGED: using returned best solution ===\n");
+
+    error("speed_input_mode must be ""mach"" or ""velocity"".");
+
 end
 
-solver.print_summary();
+fprintf("\n=== REQUESTED STEADY LEVEL CONDITION ===\n");
+fprintf("Altitude : %.2f m\n",altitude_m);
+fprintf("Velocity : %.3f m/s\n",commanded_velocity_mps);
+fprintf("Mach     : %.4f\n",mach);
+fprintf("Engine   : dry\n");
 
-%% Final verification about CG
+%% Trim variables and equations
 
-ac.state.set_full_state(x_trim);
-ac.set_controls_from_vector(u_trim);
+trim_cfg=struct();
 
-[m_trim, cg_trim, I_trim] = ac.compute_total_mass_properties(x_trim); %#ok<ASGLU>
-ac.update_frame_position("cg", cg_trim);
-ac.update_frame_position("gravity_cg", cg_trim);
-ac.set_reference_frame("cg");
+trim_cfg.variables=["alpha"; "stabilator"; "throttle"];
 
-[F_trim, M_trim, fuel_flow_trim] = ac.compute_total_loads(x_trim, u_trim); %#ok<ASGLU>
+trim_cfg.residuals=["Fx"; "Fz"; "My"];
 
-W_trim = m_trim * ac.g;
-cbar_trim = ac.geometry.mean_aerodynamic_chord;
+trim_cfg.initial_guess=[deg2rad(5); deg2rad(1.5); 0.45];
 
-fprintf("\n=== TRIM VERIFICATION ABOUT CG ===\n");
-fprintf("Mass       : %.2f kg\n", m_trim);
-fprintf("CG         : [% .4f % .4f % .4f] m\n", cg_trim);
-fprintf("Alpha      : %.4f deg\n", rad2deg(atan2(x_trim(6), x_trim(4))));
-fprintf("Theta      : %.4f deg\n", rad2deg(x_trim(8)));
-fprintf("Aileron    : %.4f deg\n", rad2deg(u_trim(1)));
-fprintf("Elevator   : %.4f deg\n", rad2deg(u_trim(2)));
-fprintf("Rudder     : %.4f deg\n", rad2deg(u_trim(3)));
-fprintf("Throttle   : %.6f\n", u_trim(4));
-fprintf("F [N]      : [% .4e % .4e % .4e]\n", F_trim);
-fprintf("M [Nm]     : [% .4e % .4e % .4e]\n", M_trim);
-fprintf("Fx/W       : %.6e\n", F_trim(1) / W_trim);
-fprintf("Fz/W       : %.6e\n", F_trim(3) / W_trim);
-fprintf("My/Wc      : %.6e\n", M_trim(2) / (W_trim * cbar_trim));
+trim_cfg.lb=[deg2rad(-5); deg2rad(-25); 0];
 
-%% Simulink 
+trim_cfg.ub=[deg2rad(20); deg2rad(25); 1];
 
-n_cs    = numel(ac.control_surfaces);
-n_pe    = numel(ac.propulsive_elements);
-n_total = n_cs + n_pe;
+trim_cfg.weights=[1; 1; 1];
 
-t_vec = (0:dt_fc:sim_time).';
+%% Fixed steady-level values
 
-x0 = x_trim(:);
-u0 = u_trim(:);
+trim_cfg.fixed=struct();
 
-Initialpos = x0(1:3);
-InitialVel = x0(4:6);
-InitialOri = x0(7:9);
-InitialRot = x0(10:12);
+trim_cfg.fixed.beta=0;
+trim_cfg.fixed.gamma=0;
 
-u_trim_mat = repmat(u0.', numel(t_vec), 1);
+trim_cfg.fixed.phi=0;
+trim_cfg.fixed.psi=0;
 
-control_input_data = struct();
-control_input_data.time = t_vec;
-control_input_data.signals.values = u_trim_mat;
-control_input_data.signals.dimensions = n_total;
+trim_cfg.fixed.p=0;
+trim_cfg.fixed.q=0;
+trim_cfg.fixed.r=0;
 
-ground_k = ac.ground_k;
-ground_c = ac.ground_c;
+trim_cfg.fixed.aileron=0;
+trim_cfg.fixed.rudder=0;
 
-assignin("base", "ac", ac);
-assignin("base", "n_cs", n_cs);
-assignin("base", "n_pe", n_pe);
-assignin("base", "n_total", n_total);
+trim_cfg.reference_frame_name="cg";
 
-assignin("base", "initial_state", x0);
-assignin("base", "Initialpos", Initialpos);
-assignin("base", "InitialVel", InitialVel);
-assignin("base", "InitialOri", InitialOri);
-assignin("base", "InitialRot", InitialRot);
+%% Solver settings
 
-assignin("base", "u_trim", u0);
-assignin("base", "control_input_data", control_input_data);
+solver_cfg=struct();
 
-assignin("base", "sim_stop_time", sim_time);
-assignin("base", "dt_fc", dt_fc);
-assignin("base", "disable_rate_limiting", disable_rate_limiting);
-assignin("base", "ground_k", ground_k);
+solver_cfg.residual_tolerance=1e-5;
 
-fprintf("n_cs             = %d\n", n_cs);
-fprintf("n_pe             = %d\n", n_pe);
-fprintf("n_total          = %d\n", n_total);
-fprintf("sim_stop_time    = %.2f s\n", sim_time);
-fprintf("dt_fc            = %.4f s\n", dt_fc);
-fprintf("rate limiting off= %d\n", disable_rate_limiting);
-fprintf("x0 alpha         = %.4f deg\n", rad2deg(atan2(x0(6), x0(4))));
+solver_cfg.fmincon_options=optimoptions( ...
+    "fmincon", ...
+    "Algorithm","sqp", ...
+    "Display","iter", ...
+    "MaxIterations",500, ...
+    "MaxFunctionEvaluations",10000, ...
+    "OptimalityTolerance",1e-10, ...
+    "ConstraintTolerance",1e-10, ...
+    "StepTolerance",1e-12, ...
+    "FunctionTolerance",1e-12, ...
+    "FiniteDifferenceType","central", ...
+    "FiniteDifferenceStepSize",1e-5);
 
-%% Local helper functions
+%% Solve steady-level trim
 
-function add_or_update_frame(ac, name, parent_name, r_parent, dcm_fn)
-    if ~ac.has_frame(name)
-        ac.add_frame(name, parent_name, r_parent(:), dcm_fn);
-    else
-        ac.update_frame_position(name, r_parent(:));
-        ac.update_frame_orientation(name, dcm_fn);
-    end
-end
+trim_solver=GenericTrimSolver(ac);
 
-function C = wind_to_body_dcm(x)
-    u = x(4);
-    v = x(5);
-    w = x(6);
+fprintf("\n=== SOLVING STEADY LEVEL TRIM ===\n");
 
-    V = sqrt(u^2 + v^2 + w^2);
+[x_trim,u_trim,trim_converged,trim_info]= trim_solver.solve_trim(condition, trim_cfg, solver_cfg);
 
-    if V < 1e-9
-        C = eye(3);
-        return;
-    end
+%% Extract trim variables
 
-    alpha = atan2(w, u);
-    beta  = asin(max(-1, min(1, v / V)));
+trim_alpha_rad=x_trim(6);
+trim_alpha_rad=atan2(x_trim(6),x_trim(4));
 
-    ca = cos(alpha);
-    sa = sin(alpha);
-    cb = cos(beta);
-    sb = sin(beta);
+trim_alpha_deg=rad2deg(trim_alpha_rad);
 
-    C = [ca*cb, -ca*sb, -sa;
-         sb,     cb,      0;
-         sa*cb, -sa*sb,  ca];
-end
+trim_theta_rad=x_trim(8);
+trim_theta_deg=rad2deg(trim_theta_rad);
 
-function C = ned_to_body_dcm(x)
-    phi   = x(7);
-    theta = x(8);
-    psi   = x(9);
+trim_beta_rad=asin(max(-1,min(1,x_trim(5)/norm(x_trim(4:6)))));
 
-    cp = cos(phi);
-    sp = sin(phi);
+trim_beta_deg=rad2deg(trim_beta_rad);
 
-    ct = cos(theta);
-    st = sin(theta);
+stabilator_index= ac.control.get_index_by_name("stabilator");
 
-    cs = cos(psi);
-    ss = sin(psi);
+trim_stabilator_rad=u_trim(stabilator_index);
+trim_stabilator_deg=rad2deg(trim_stabilator_rad);
 
-    C = [ ct*cs,              ct*ss,             -st;
-          sp*st*cs-cp*ss,     sp*st*ss+cp*cs,    sp*ct;
-          cp*st*cs+sp*ss,     cp*st*ss-sp*cs,    cp*ct ];
-end
+trim_throttle=engine.throttle;
+
+trim_velocity_mps=norm(x_trim(4:6));
+
+[~,trim_speed_of_sound_mps,~,~]= atmosisa(altitude_m);
+
+trim_mach= trim_velocity_mps/trim_speed_of_sound_mps;
+
+%% Extract force and moment residuals
+
+trim_force_N=trim_info.loads.F_total;
+trim_moment_Nm=trim_info.loads.M_total;
+
+Fx_N=trim_force_N(1);
+Fy_N=trim_force_N(2);
+Fz_N=trim_force_N(3);
+
+Mx_Nm=trim_moment_Nm(1);
+My_Nm=trim_moment_Nm(2);
+Mz_Nm=trim_moment_Nm(3);
+
+normalized_residual=trim_info.residual;
+
+Fx_normalized=normalized_residual(1);
+Fz_normalized=normalized_residual(2);
+My_normalized=normalized_residual(3);
+
+%% Display trim solution
+
+fprintf("\n=== STEADY LEVEL TRIM RESULT ===\n");
+
+fprintf("Converged       : %d\n",trim_converged);
+fprintf("Exit flag       : %d\n",trim_info.exitflag);
+fprintf("Residual norm   : %.6e\n",trim_info.residual_norm);
+
+fprintf("\nFlight condition\n");
+fprintf("Altitude        : %.3f m\n",altitude_m);
+fprintf("Velocity        : %.6f m/s\n",trim_velocity_mps);
+fprintf("Mach            : %.6f\n",trim_mach);
+
+fprintf("\nTrim state\n");
+fprintf("Alpha           : %.6f deg\n",trim_alpha_deg);
+fprintf("Beta            : %.6f deg\n",trim_beta_deg);
+fprintf("Theta           : %.6f deg\n",trim_theta_deg);
+fprintf("Phi             : %.6f deg\n",rad2deg(x_trim(7)));
+fprintf("Psi             : %.6f deg\n",rad2deg(x_trim(9)));
+fprintf("p               : %.6e rad/s\n",x_trim(10));
+fprintf("q               : %.6e rad/s\n",x_trim(11));
+fprintf("r               : %.6e rad/s\n",x_trim(12));
+
+fprintf("\nTrim controls\n");
+fprintf("Aileron         : %.6f deg\n",rad2deg(aileron.deflection));
+fprintf("Stabilator      : %.6f deg\n",trim_stabilator_deg);
+fprintf("Rudder          : %.6f deg\n",rad2deg(rudder.deflection));
+fprintf("Throttle        : %.8f\n",trim_throttle);
+
+fprintf("\nTotal loads about CG\n");
+fprintf("Fx              : % .6e N\n",Fx_N);
+fprintf("Fy              : % .6e N\n",Fy_N);
+fprintf("Fz              : % .6e N\n",Fz_N);
+fprintf("Mx              : % .6e N-m\n",Mx_Nm);
+fprintf("My              : % .6e N-m\n",My_Nm);
+fprintf("Mz              : % .6e N-m\n",Mz_Nm);
+
+fprintf("\nNormalized trim residuals\n");
+fprintf("Fx/W            : % .6e\n",Fx_normalized);
+fprintf("Fz/W            : % .6e\n",Fz_normalized);
+fprintf("My/(W*c)        : % .6e\n",My_normalized);
+
+%% Result tables
+
+TrimCondition=table( ...
+    altitude_m, ...
+    trim_velocity_mps, ...
+    trim_mach, ...
+    trim_alpha_deg, ...
+    trim_beta_deg, ...
+    trim_theta_deg, ...
+    trim_stabilator_deg, ...
+    trim_throttle, ...
+    trim_converged, ...
+    trim_info.residual_norm, ...
+    'VariableNames',{ ...
+    'Altitude_m', ...
+    'Velocity_mps', ...
+    'Mach', ...
+    'Alpha_deg', ...
+    'Beta_deg', ...
+    'Theta_deg', ...
+    'Stabilator_deg', ...
+    'Throttle', ...
+    'Converged', ...
+    'ResidualNorm'});
+
+TrimLoads=table(Fx_N, Fy_N, Fz_N, Mx_Nm, My_Nm, Mz_Nm, Fx_normalized, Fz_normalized, My_normalized, 'VariableNames',{'Fx_N', 'Fy_N', 'Fz_N', 'Mx_Nm', 'My_Nm', 'Mz_Nm', 'Fx_over_W', 'Fz_over_W', 'My_over_Wc'});
+
+fprintf("\n=== TRIM CONDITION TABLE ===\n");
+disp(TrimCondition);
+
+fprintf("\n=== TRIM LOAD TABLE ===\n");
+disp(TrimLoads);
+
+%% Save useful workspace outputs
+
+SteadyLevelTrim=struct();
+
+SteadyLevelTrim.condition=condition;
+SteadyLevelTrim.x_trim=x_trim;
+SteadyLevelTrim.u_trim=u_trim;
+SteadyLevelTrim.converged=trim_converged;
+SteadyLevelTrim.info=trim_info;
+SteadyLevelTrim.condition_table=TrimCondition;
+SteadyLevelTrim.load_table=TrimLoads;
+SteadyLevelTrim.mass_kg=mass;
+SteadyLevelTrim.weight_N=weight_N;
+SteadyLevelTrim.cg_m=cg;
+SteadyLevelTrim.inertia_kgm2=Icg;
+
+fprintf("\n=== STEADY LEVEL TRIM COMPLETE ===\n");
+fprintf("Workspace outputs:\n");
+fprintf("  SteadyLevelTrim\n");
+fprintf("  TrimCondition\n");
+fprintf("  TrimLoads\n");
+fprintf("  x_trim\n");
+fprintf("  u_trim\n");

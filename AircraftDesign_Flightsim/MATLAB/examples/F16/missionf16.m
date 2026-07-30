@@ -1,59 +1,70 @@
 %% F-16 Mission Using MissionPlanner
 clear; clc; close all
 
+%% PATH BOOTSTRAP
+% Ensures the shared class library and example helper functions are on the
+% MATLAB path regardless of the current working directory or session state.
+this_script_dir = fileparts(mfilename('fullpath'));
+matlab_root_dir = fileparts(fileparts(this_script_dir));
+addpath(genpath(fullfile(matlab_root_dir,'classes')));
+addpath(genpath(fullfile(matlab_root_dir,'examples')));
+
 model_name = 'flightsim_aircraft';
 if bdIsLoaded(model_name)
     set_param(model_name, 'SimulationCommand', 'stop');
 end
 
-%% Aircraft Configuration
+%% Aircraft object
+
 ac = Aircraft();
+
+%% Geometry / reference positions
+
+S_ref = 27.87;
+b_ref = 9.14;
+c_ref = 3.45;
+ac.geometry.set_reference_geometry(S_ref,b_ref,c_ref);
+ac.geometry.set_reference_point([0;0;0]);
+
+%% Frames
+
+ac.set_body_frame("body");
+ac.set_reference_frame("body");
+
+cfg = ac.get_configurator();
+
+%% Mass properties
 
 empty_mass = 9300;
 Ixx = 55800;
 Iyy = 63100;
 Izz = 118000;
+I_body = diag([Ixx Iyy Izz]);
 
-ac.mass.set_mass_properties(empty_mass, Ixx, Iyy, Izz, 0, 0, 0, [0 0 0]);
-ac.mass.add_fuel_tank([0, 0, 0], 3000, 'distributed');
-ac.mass.add_fuel_tank([-2, 0, 0], 1500, 'distributed');
-ac.mass.set_fuel_mass(2400);
+cfg.add_component('name','airframe', 'type','airframe', 'mass',empty_mass, 'position',[0 0 0], 'inertia',I_body, 'parent_frame','body');
 
-ac.geometry.wing_area = 27.87;
-ac.geometry.wing_span = 9.14;
-ac.geometry.mean_aerodynamic_chord = 3.45;
+% Two fuel tanks (nose and -2 m station), current load split by capacity.
+fuel_tank_1_capacity = 3000;
+fuel_tank_2_capacity = 1500;
+total_fuel_mass = 2400;
+fuel_tank_1_mass = total_fuel_mass* fuel_tank_1_capacity/(fuel_tank_1_capacity+fuel_tank_2_capacity);
+fuel_tank_2_mass = total_fuel_mass-fuel_tank_1_mass;
 
-ac.set_aerodynamics(CoefficientAerodynamics(@F16Lookup));
+cfg.add_component('name','fuel_tank_1', 'type','fuel', 'mass',fuel_tank_1_mass, 'position',[0 0 0], 'parent_frame','body');
+
+cfg.add_component('name','fuel_tank_2', 'type','fuel', 'mass',fuel_tank_2_mass, 'position',[-2 0 0], 'parent_frame','body');
+
+%% Aerodynamics
+
+cfg.add_aero_solver(CoefficientAerodynamics(@F16Lookup), 'name','f16_aero', 'position',[0;0;0], 'geom',ac.geometry, 'parent_frame','body');
 
 %% Controls
-cfg = ac.get_configurator();
 
-cfg.add_control_surface( ...
-    'name','aileron', ...
-    'surface_type','aileron', ...
-    'classification','primary', ...
-    'axis',[1 0 0], ...
-    'max_deflection',deg2rad(20), ...
-    'min_deflection',deg2rad(-20), ...
-    'dCl',0.05,'dCm',0,'dCn',0);
+cfg.add_control_surface('name','aileron', 'surface_type','aileron', 'classification','primary', 'axis',[1 0 0], 'max_deflection',deg2rad(20), 'min_deflection',deg2rad(-20), 'dCl',0.05,'dCm',0,'dCn',0);
 
-cfg.add_control_surface( ...
-    'name','elevator', ...
-    'surface_type','elevator', ...
-    'classification','primary', ...
-    'axis',[0 1 0], ...
-    'max_deflection',deg2rad(25), ...
-    'min_deflection',deg2rad(-25), ...
-    'dCl',0,'dCm',-0.10,'dCn',0);
+cfg.add_control_surface('name','elevator', 'surface_type','elevator', 'classification','primary', 'axis',[0 1 0], 'max_deflection',deg2rad(25), 'min_deflection',deg2rad(-25), 'dCl',0,'dCm',-0.10,'dCn',0);
 
-cfg.add_control_surface( ...
-    'name','rudder', ...
-    'surface_type','rudder', ...
-    'classification','primary', ...
-    'axis',[0 0 1], ...
-    'max_deflection',deg2rad(30), ...
-    'min_deflection',deg2rad(-30), ...
-    'dCl',0,'dCm',0,'dCn',-0.08);
+cfg.add_control_surface('name','rudder', 'surface_type','rudder', 'classification','primary', 'axis',[0 0 1], 'max_deflection',deg2rad(30), 'min_deflection',deg2rad(-30), 'dCl',0,'dCm',0,'dCn',-0.08);
 
 %% Propulsion
 cfg.add_propulsive_element( ...
@@ -63,7 +74,7 @@ cfg.add_propulsive_element( ...
     'position',[-1.5 0 0], ...
     'direction',[1 0 0], ...
     'fuel_rate',2.5, ...
-    'thrust_model',@(thr,M,alt,V,rho) F100ThrustModel(thr, M, alt, V, rho, 128992));
+    'thrust_model',@(thr,M,alt,V) F100ThrustModel(thr, M, alt, V));
 
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
@@ -76,7 +87,7 @@ segments(1).type     = 'hold_time';
 segments(1).altitude = 0;
 segments(1).mach     = 0.30;
 segments(1).duration = 30;
-segments(1).gamma    = deg2rad(8);
+segments(1).gamma    = 0;
 
 segments(2).type     = 'climb';
 segments(2).h_start  = 0;

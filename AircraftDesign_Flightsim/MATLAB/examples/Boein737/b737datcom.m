@@ -1,386 +1,700 @@
-function lookup = b737datcom(datcom_file_path)
-if nargin < 1 || isempty(datcom_file_path)
-    error('DATCOM file path required');
+function [lookup,data] = b737datcom(datcom_files,verbose,control_model)
+
+if nargin < 2 || isempty(verbose)
+    verbose = true;
 end
-if ~exist(datcom_file_path, 'file')
-    error('File not found: %s', datcom_file_path);
+if nargin < 3 || isempty(control_model)
+    control_model = default_control_model();
+else
+    control_model = complete_control_model(control_model);
 end
 
-txt   = fileread(datcom_file_path);
-txt   = strrep(txt, sprintf('\r\n'), sprintf('\n'));
-txt   = strrep(txt, sprintf('\r'),   sprintf('\n'));
-lines = strsplit(txt, '\n');
+files = normalize_file_list(datcom_files);
+static_tables = empty_static_tables();
+dynamic_tables = empty_dynamic_tables();
 
-ft_to_m = 0.3048;
+for k = 1:numel(files)
+    [static_k,dynamic_k] = parse_datcom_file(files(k));
+    static_tables = [static_tables,static_k]; %#ok<AGROW>
+    dynamic_tables = [dynamic_tables,dynamic_k]; %#ok<AGROW>
+end
 
-data.control = struct( ...
-    'CLDE',0.00, 'CMDE',-1.10, ...
-    'CYDR',0.18, 'CNDR',-0.070, ...
-    'CLDA',0.070,'CNDA',0.010);
+static_tables = select_best_tables(static_tables);
+dynamic_tables = select_best_tables(dynamic_tables);
 
-data.alpha_max_rad = deg2rad(25);
-data.CL_max_abs    = 2.2;
-data.CD_min        = 0.01;
+if isempty(static_tables)
+    error('b737datcom:NoStaticData', 'No usable full-aircraft static DATCOM tables were found.');
+end
 
+reference = validate_reference_geometry(static_tables);
+grid = build_compatibility_grid(static_tables,dynamic_tables);
+altitude_scale_m = max(max(grid.altitude_m)-min(grid.altitude_m),1);
+interpolants = build_interpolants(static_tables,dynamic_tables,altitude_scale_m);
+
+data = struct();
+data.source_files = files;
+data.static_tables = static_tables;
+data.dynamic_tables = dynamic_tables;
+data.reference = reference;
+data.grid = grid;
+data.interpolants = interpolants;
+data.altitude_scale_m = altitude_scale_m;
+data.control = control_model;
+data.control_model_status = "provisional_user_replaceable";
+data.out_of_range_action = "nearest_with_validity_flag";
 data.takeoff_params = struct( ...
     'mu_rolling',0.03,'mu_braking',0.35,'safety_factor',1.15, ...
-    'CLmax_takeoff',1.8,'VR_to_Vs_ratio',1.10,'V2_to_Vs_ratio',1.20, ...
-    'screen_height_takeoff_ft',35,'rotation_alpha_deg',8,'reaction_time_s',1.0);
-
+    'CLmax_takeoff',1.8,'VR_to_Vs_ratio',1.10, ...
+    'V2_to_Vs_ratio',1.20,'screen_height_takeoff_ft',35, ...
+    'rotation_alpha_deg',8,'reaction_time_s',1.0);
 data.landing_params = struct( ...
-    'mu_braking',0.45,'approach_angle_deg',3.0,'safety_factor',1.67, ...
-    'CLmax_landing',2.2,'Vapp_to_Vs_ratio',1.30,'screen_height_landing_ft',50, ...
-    'flare_height_m',3.0,'idle_throttle',0.05,'use_idle_thrust',true);
+    'mu_braking',0.45,'approach_angle_deg',3.0, ...
+    'safety_factor',1.67,'CLmax_landing',2.2, ...
+    'Vapp_to_Vs_ratio',1.30,'screen_height_landing_ft',50, ...
+    'flare_height_m',3.0,'idle_throttle',0.05, ...
+    'use_idle_thrust',true);
 
-case_defs = extract_case_definitions(lines, ft_to_m);
-tables    = extract_aero_tables(lines);
+lookup = @(x,u,geom) evaluate_lookup(x,u,geom,data);
 
-if isempty(tables)
-    error('No aerodynamic tables found in DATCOM output.');
+if verbose
+    print_summary(data);
+end
 end
 
-fprintf('\n=== DATCOM TABLES EXTRACTED ===\n');
-for i = 1:numel(tables)
-    fprintf('%2d) M=%.3f  Alt=%.0f ft  points=%d  config=%s\n', ...
-        i, tables(i).mach, tables(i).altitude_ft, ...
-        numel(tables(i).alpha_deg), char(tables(i).config_label));
+function files = normalize_file_list(input_value)
+if nargin < 1 || isempty(input_value)
+    error('b737datcom:FilesRequired','DATCOM output files are required.');
 end
 
-data.grid = build_aero_grid(tables, case_defs, ft_to_m);
-
-fprintf('\nAerodynamic grid: %d alpha x %d Mach points\n', ...
-    numel(data.grid.alpha_rad), numel(data.grid.mach_vec));
-fprintf('Mach range:  %.3f - %.3f\n', min(data.grid.mach_vec), max(data.grid.mach_vec));
-fprintf('Alpha range: %.1f - %.1f deg\n', ...
-    rad2deg(min(data.grid.alpha_rad)), rad2deg(max(data.grid.alpha_rad)));
-
-lookup = @(x, u, geom) local_eval_lookup(x, u, geom, data);
-end
-
-% ── Build unified alpha-Mach grid ─────────────────────────────────────────────
-
-function grid = build_aero_grid(tables, case_defs, ft_to_m) %#ok<INUSD>
-
-if numel(tables) == 1
-    m0    = tables(1).mach;
-    beta0 = sqrt(max(1 - m0^2, 0.01));
-    mach_extra = [0.20 0.30 0.40 0.50 0.60 0.70 0.74 0.78];
-    mach_extra = mach_extra(abs(mach_extra - m0) > 0.01);
-    orig = tables(1);
-    for im = 1:numel(mach_extra)
-        me     = mach_extra(im);
-        beta_e = sqrt(max(1 - me^2, 0.01));
-        t      = orig;
-        t.mach = me;
-        t.CL   = orig.CL * (beta0 / beta_e);
-        t.CM   = orig.CM * (beta0 / beta_e);
-        Mdd    = 0.74;
-        cd_wave  = 0;
-        if me > Mdd, cd_wave = 20*(me-Mdd)^4; end
-        cd_press = max(orig.CD - 0.008, 0);
-        cd_skin  = min(orig.CD, 0.008);
-        t.CD   = cd_skin + cd_press*(beta0/beta_e) + cd_wave;
-        t.config_priority = orig.config_priority - 0.1;
-        tables(end+1) = t; %#ok<AGROW>
+if ischar(input_value) || (isstring(input_value) && isscalar(input_value))
+    candidate = string(input_value);
+    if isfolder(candidate)
+        listing = dir(fullfile(candidate,'*.out'));
+        if isempty(listing)
+            listing = dir(fullfile(candidate,'*.dat'));
+        end
+        files = strings(numel(listing),1);
+        for k = 1:numel(listing)
+            files(k) = string(fullfile(listing(k).folder,listing(k).name));
+        end
+    else
+        files = candidate;
     end
-    fprintf('  (single table — Prandtl-Glauert scaled to %d Mach points)\n', numel(tables));
+elseif iscell(input_value) || isstring(input_value)
+    files = string(input_value(:));
+else
+    error('b737datcom:InvalidFiles', 'Input must be a path, directory, string array, or cell array.');
 end
 
-mach_vec         = unique(round([tables.mach], 4));
-alpha_deg_common = unique(vertcat(tables.alpha_deg));
-alpha_rad        = deg2rad(alpha_deg_common);
-n_a = numel(alpha_rad);
-n_m = numel(mach_vec);
+files = files(strlength(files) > 0);
+if isempty(files)
+    error('b737datcom:NoFiles','No DATCOM output files were found.');
+end
+for k = 1:numel(files)
+    if ~isfile(files(k))
+        error('b737datcom:FileNotFound','File not found: %s',files(k));
+    end
+end
+end
 
-CL_mat = NaN(n_a, n_m);
-CD_mat = NaN(n_a, n_m);
-CM_mat = NaN(n_a, n_m);
+function [static_tables,dynamic_tables] = parse_datcom_file(file_name)
+text = fileread(file_name);
+text = strrep(text,sprintf('\r\n'),sprintf('\n'));
+text = strrep(text,sprintf('\r'),sprintf('\n'));
+lines = splitlines(string(text));
 
-for im = 1:n_m
-    m          = mach_vec(im);
-    candidates = tables(abs([tables.mach] - m) < 0.005);
-    if isempty(candidates), continue; end
-    t = candidates(end);
-    for ia = 1:n_a
-        a = alpha_deg_common(ia);
-        if a >= min(t.alpha_deg) && a <= max(t.alpha_deg)
-            CL_mat(ia,im) = interp1(t.alpha_deg, t.CL, a, 'linear');
-            CD_mat(ia,im) = interp1(t.alpha_deg, t.CD, a, 'linear');
-            CM_mat(ia,im) = interp1(t.alpha_deg, t.CM, a, 'linear');
+static_tables = empty_static_tables();
+dynamic_tables = empty_dynamic_tables();
+
+for i = 1:numel(lines)
+    line = strtrim(lines(i));
+    if contains(line,'CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP')
+        table = parse_static_section(lines,i,file_name);
+        if ~isempty(table)
+            static_tables(end+1) = table; %#ok<AGROW>
+        end
+    elseif strcmpi(line,'DYNAMIC DERIVATIVES')
+        table = parse_dynamic_section(lines,i,file_name);
+        if ~isempty(table)
+            dynamic_tables(end+1) = table; %#ok<AGROW>
+        end
+    end
+end
+end
+
+function table = parse_static_section(lines,start_index,file_name)
+table = [];
+[configuration,case_label,priority] = read_configuration(lines,start_index);
+if priority < 1
+    return;
+end
+[condition,condition_line] = read_condition(lines,start_index);
+if isempty(condition)
+    return;
+end
+
+header_index = find_header(lines,condition_line, @(s) contains(s,'ALPHA') && contains(s,'CD') && contains(s,'CL') && contains(s,'CM'),45);
+if header_index == 0
+    return;
+end
+
+alpha = [];
+CD = [];
+CL = [];
+CM = [];
+CYB = [];
+CNB = [];
+CLB = [];
+last_CYB = NaN;
+last_CNB = NaN;
+
+for k = header_index+1:min(header_index+80,numel(lines))
+    line = strtrim(lines(k));
+    upper_line = upper(line);
+    if contains(upper_line,'ALPHA') && contains(upper_line,'Q/QINF')
+        break;
+    end
+    if contains(upper_line,'AUTOMATED STABILITY') || contains(upper_line,'DYNAMIC DERIVATIVES') || contains(upper_line,'CHARACTERISTICS AT ANGLE')
+        break;
+    end
+    values = numeric_tokens(line);
+    if numel(values) < 9
+        continue;
+    end
+    angle = values(1);
+    if ~isfinite(angle) || abs(angle) > 45
+        continue;
+    end
+    if numel(values) >= 12
+        last_CYB = values(10);
+        last_CNB = values(11);
+        clb = values(12);
+    elseif numel(values) >= 10
+        clb = values(10);
+    else
+        clb = NaN;
+    end
+    alpha(end+1,1) = angle; %#ok<AGROW>
+    CD(end+1,1) = values(2); %#ok<AGROW>
+    CL(end+1,1) = values(3); %#ok<AGROW>
+    CM(end+1,1) = values(4); %#ok<AGROW>
+    CYB(end+1,1) = last_CYB; %#ok<AGROW>
+    CNB(end+1,1) = last_CNB; %#ok<AGROW>
+    CLB(end+1,1) = clb; %#ok<AGROW>
+end
+
+valid = isfinite(alpha) & isfinite(CD) & isfinite(CL) & isfinite(CM);
+alpha = alpha(valid);
+CD = CD(valid);
+CL = CL(valid);
+CM = CM(valid);
+CYB = CYB(valid);
+CNB = CNB(valid);
+CLB = CLB(valid);
+if numel(alpha) < 4
+    return;
+end
+
+[alpha,unique_index] = unique(alpha,'stable');
+CD = CD(unique_index);
+CL = CL(unique_index);
+CM = CM(unique_index);
+CYB = fill_constant_missing(CYB(unique_index));
+CNB = fill_constant_missing(CNB(unique_index));
+CLB = fill_linear_missing(alpha,CLB(unique_index));
+
+table = struct( ...
+    'source_file',string(file_name), ...
+    'configuration',configuration, ...
+    'case_label',case_label, ...
+    'config_priority',priority, ...
+    'mach',condition.mach, ...
+    'altitude_m',condition.altitude_m, ...
+    'alpha_deg',alpha, ...
+    'CD',CD,'CL',CL,'CM',CM, ...
+    'CYB',CYB,'CNB',CNB,'CLB',CLB, ...
+    'sref_m2',condition.sref_m2, ...
+    'cbar_m',condition.cbar_m, ...
+    'bref_m',condition.bref_m, ...
+    'moment_reference_m',condition.moment_reference_m);
+end
+
+function table = parse_dynamic_section(lines,start_index,file_name)
+table = [];
+[configuration,case_label,priority] = read_configuration(lines,start_index);
+if priority < 1
+    return;
+end
+[condition,condition_line] = read_condition(lines,start_index);
+if isempty(condition)
+    return;
+end
+
+header_index = find_header(lines,condition_line, @(s) contains(s,'ALPHA') && contains(s,'CLQ') && contains(s,'CMQ') && contains(s,'CNR'),45);
+if header_index == 0
+    return;
+end
+
+alpha = [];
+CLQ = [];
+CMQ = [];
+CLAD = [];
+CMAD = [];
+CLP = [];
+CYP = [];
+CNP = [];
+CNR = [];
+CLR = [];
+last_CLQ = NaN;
+last_CMQ = NaN;
+
+for k = header_index+1:min(header_index+65,numel(lines))
+    line = strtrim(lines(k));
+    upper_line = upper(line);
+    if contains(upper_line,'WARNING') || contains(upper_line,'AUTOMATED STABILITY') || contains(upper_line,'CONFIGURATION AUXILIARY') || contains(upper_line,'CHARACTERISTICS AT ANGLE')
+        break;
+    end
+    values = numeric_tokens(line);
+    if numel(values) >= 10
+        angle = values(1);
+        last_CLQ = values(2);
+        last_CMQ = values(3);
+        remainder = values(4:10);
+    elseif numel(values) == 8
+        angle = values(1);
+        remainder = values(2:8);
+    else
+        continue;
+    end
+    if ~isfinite(angle) || abs(angle) > 45
+        continue;
+    end
+    alpha(end+1,1) = angle; %#ok<AGROW>
+    CLQ(end+1,1) = last_CLQ; %#ok<AGROW>
+    CMQ(end+1,1) = last_CMQ; %#ok<AGROW>
+    CLAD(end+1,1) = remainder(1); %#ok<AGROW>
+    CMAD(end+1,1) = remainder(2); %#ok<AGROW>
+    CLP(end+1,1) = remainder(3); %#ok<AGROW>
+    CYP(end+1,1) = remainder(4); %#ok<AGROW>
+    CNP(end+1,1) = remainder(5); %#ok<AGROW>
+    CNR(end+1,1) = remainder(6); %#ok<AGROW>
+    CLR(end+1,1) = remainder(7); %#ok<AGROW>
+end
+
+if numel(alpha) < 4
+    return;
+end
+[alpha,unique_index] = unique(alpha,'stable');
+CLQ = fill_constant_missing(CLQ(unique_index));
+CMQ = fill_constant_missing(CMQ(unique_index));
+CLAD = CLAD(unique_index);
+CMAD = CMAD(unique_index);
+CLP = CLP(unique_index);
+CYP = CYP(unique_index);
+CNP = CNP(unique_index);
+CNR = CNR(unique_index);
+CLR = CLR(unique_index);
+
+table = struct( ...
+    'source_file',string(file_name), ...
+    'configuration',configuration, ...
+    'case_label',case_label, ...
+    'config_priority',priority, ...
+    'mach',condition.mach, ...
+    'altitude_m',condition.altitude_m, ...
+    'alpha_deg',alpha, ...
+    'CLQ',CLQ,'CMQ',CMQ,'CLAD',CLAD,'CMAD',CMAD, ...
+    'CLP',CLP,'CYP',CYP,'CNP',CNP,'CNR',CNR,'CLR',CLR);
+end
+
+function [configuration,case_label,priority] = read_configuration(lines,start_index)
+configuration = "";
+case_label = "";
+for k = start_index+1:min(start_index+8,numel(lines))
+    line = strtrim(lines(k));
+    if contains(upper(line),'CONFIGURATION') && strlength(configuration) == 0
+        configuration = line;
+    elseif strlength(line) > 0 && ~contains(upper(line),'FLIGHT CONDITIONS') && ~contains(upper(line),'REFERENCE DIMENSIONS') && ~contains(upper(line),'CONFIGURATION')
+        case_label = line;
+    end
+    if contains(upper(line),'FLIGHT CONDITIONS')
+        break;
+    end
+end
+
+label = upper(configuration);
+if contains(label,'WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL') || contains(label,'WING-BODY-HORIZONTAL TAIL-VERTICAL TAIL')
+    priority = 5;
+elseif contains(label,'WING-BODY-HORIZONTAL TAIL')
+    priority = 4;
+elseif contains(label,'WING-BODY-VERTICAL TAIL')
+    priority = 3;
+elseif contains(label,'WING-BODY')
+    priority = 2;
+elseif contains(label,'WING')
+    priority = 1;
+else
+    priority = 0;
+end
+end
+
+function [condition,line_index] = read_condition(lines,start_index)
+condition = [];
+line_index = 0;
+metric = true;
+for k = start_index+1:min(start_index+35,numel(lines))
+    line = upper(strtrim(lines(k)));
+    if contains(line,'FT/SEC') || contains(line,'FT**2')
+        metric = false;
+    elseif contains(line,'M/SEC') || contains(line,'M**2')
+        metric = true;
+    end
+    if startsWith(line,'0 ')
+        values = numeric_tokens(extractAfter(strtrim(lines(k)),2));
+    else
+        values = numeric_tokens(line);
+    end
+    if numel(values) < 11
+        continue;
+    end
+    if values(1) < 0 || values(1) > 5 || values(2) < -5000
+        continue;
+    end
+    length_factor = 1;
+    area_factor = 1;
+    if ~metric
+        length_factor = 0.3048;
+        area_factor = 0.09290304;
+    end
+    condition = struct( ...
+        'mach',values(1), ...
+        'altitude_m',values(2)*length_factor, ...
+        'sref_m2',values(7)*area_factor, ...
+        'cbar_m',values(8)*length_factor, ...
+        'bref_m',values(9)*length_factor, ...
+        'moment_reference_m',[values(10),0,values(11)]*length_factor);
+    line_index = k;
+    return;
+end
+end
+
+function index = find_header(lines,start_index,predicate,max_search)
+index = 0;
+for k = start_index+1:min(start_index+max_search,numel(lines))
+    line = upper(strtrim(lines(k)));
+    if predicate(line)
+        index = k;
+        return;
+    end
+end
+end
+
+function values = numeric_tokens(line)
+tokens = regexp(char(line), '[-+]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:[EeDd][-+]?\d+)?','match');
+values = zeros(1,numel(tokens));
+for k = 1:numel(tokens)
+    values(k) = str2double(regexprep(tokens{k},'[Dd]','E'));
+end
+end
+
+function values = fill_constant_missing(values)
+finite_index = find(isfinite(values),1,'first');
+if isempty(finite_index)
+    return;
+end
+values(~isfinite(values)) = values(finite_index);
+end
+
+function values = fill_linear_missing(alpha,values)
+valid = isfinite(values);
+if sum(valid) >= 2
+    values(~valid) = interp1(alpha(valid),values(valid),alpha(~valid), 'linear','extrap');
+elseif sum(valid) == 1
+    values(~valid) = values(valid);
+end
+end
+
+function tables = select_best_tables(tables)
+if isempty(tables)
+    return;
+end
+keys = strings(numel(tables),1);
+for k = 1:numel(tables)
+    keys(k) = sprintf('%.5f|%.3f',tables(k).mach,tables(k).altitude_m);
+end
+unique_keys = unique(keys,'stable');
+keep = false(numel(tables),1);
+for k = 1:numel(unique_keys)
+    candidates = find(keys == unique_keys(k));
+    scores = zeros(numel(candidates),1);
+    for j = 1:numel(candidates)
+        index = candidates(j);
+        scores(j) = 1000*tables(index).config_priority+ numel(tables(index).alpha_deg);
+    end
+    [~,best] = max(scores);
+    keep(candidates(best)) = true;
+end
+tables = tables(keep);
+[~,order] = sortrows([[tables.mach].',[tables.altitude_m].'],[1 2]);
+tables = tables(order);
+end
+
+function reference = validate_reference_geometry(tables)
+sref = [tables.sref_m2].';
+cbar = [tables.cbar_m].';
+bref = [tables.bref_m].';
+moment_reference = vertcat(tables.moment_reference_m);
+check_consistency(sref,'reference area');
+check_consistency(cbar,'reference chord');
+check_consistency(bref,'reference span');
+for k = 1:3
+    check_consistency(moment_reference(:,k), sprintf('moment-reference component %d',k));
+end
+reference = struct('sref_m2',median(sref), 'cbar_m',median(cbar), 'bref_m',median(bref), 'moment_reference_m',median(moment_reference,1));
+end
+
+function check_consistency(values,label)
+values = values(isfinite(values));
+if isempty(values)
+    error('b737datcom:MissingReference','Missing %s.',label);
+end
+tolerance = max(1e-6,1e-4*max(abs(values)));
+if max(values)-min(values) > tolerance
+    error('b737datcom:ReferenceMismatch', 'DATCOM files use inconsistent %s values.',label);
+end
+end
+
+function grid = build_compatibility_grid(static_tables,dynamic_tables)
+alpha_deg = unique(vertcat(static_tables.alpha_deg));
+mach = unique([static_tables.mach]);
+altitude_m = unique([static_tables.altitude_m]);
+static_fields = {'CL','CD','CM','CYB','CNB','CLB'};
+dynamic_fields = {'CLQ','CMQ','CLAD','CMAD','CLP','CYP','CNP','CNR','CLR'};
+size_grid = [numel(alpha_deg),numel(mach),numel(altitude_m)];
+
+grid = struct();
+grid.alpha_deg = alpha_deg;
+grid.alpha_rad = deg2rad(alpha_deg);
+grid.mach_vec = mach(:).';
+grid.altitude_m = altitude_m(:).';
+grid.alpha_min_deg = NaN(numel(mach),numel(altitude_m));
+grid.alpha_max_deg = NaN(numel(mach),numel(altitude_m));
+for k = 1:numel(static_fields)
+    grid.(static_fields{k}) = NaN(size_grid);
+end
+for k = 1:numel(dynamic_fields)
+    grid.(dynamic_fields{k}) = NaN(size_grid);
+end
+
+for k = 1:numel(static_tables)
+    table = static_tables(k);
+    im = find(abs(mach-table.mach) < 1e-8,1);
+    ih = find(abs(altitude_m-table.altitude_m) < 1e-5,1);
+    grid.alpha_min_deg(im,ih) = min(table.alpha_deg);
+    grid.alpha_max_deg(im,ih) = max(table.alpha_deg);
+    for ia = 1:numel(table.alpha_deg)
+        ig = find(abs(alpha_deg-table.alpha_deg(ia)) < 1e-8,1);
+        for jf = 1:numel(static_fields)
+            field = static_fields{jf};
+            values = grid.(field);
+            source_values = table.(field);
+            values(ig,im,ih) = source_values(ia);
+            grid.(field) = values;
         end
     end
 end
 
-for im = 1:n_m
-    valid = ~isnan(CL_mat(:,im));
-    if sum(valid) >= 2
-        av = alpha_rad(valid);
-        CL_mat(:,im) = interp1(av, CL_mat(valid,im), alpha_rad, 'linear', 'extrap');
-        CD_mat(:,im) = interp1(av, CD_mat(valid,im), alpha_rad, 'linear', 'extrap');
-        CM_mat(:,im) = interp1(av, CM_mat(valid,im), alpha_rad, 'linear', 'extrap');
+for k = 1:numel(dynamic_tables)
+    table = dynamic_tables(k);
+    im = find(abs(mach-table.mach) < 1e-8,1);
+    ih = find(abs(altitude_m-table.altitude_m) < 1e-5,1);
+    if isempty(im) || isempty(ih)
+        continue;
+    end
+    for ia = 1:numel(table.alpha_deg)
+        ig = find(abs(alpha_deg-table.alpha_deg(ia)) < 1e-8,1);
+        if isempty(ig)
+            continue;
+        end
+        for jf = 1:numel(dynamic_fields)
+            field = dynamic_fields{jf};
+            values = grid.(field);
+            source_values = table.(field);
+            values(ig,im,ih) = source_values(ia);
+            grid.(field) = values;
+        end
     end
 end
-
-grid.alpha_rad = alpha_rad;
-grid.mach_vec  = mach_vec;
-grid.CL        = CL_mat;
-grid.CD        = CD_mat;
-grid.CM        = CM_mat;
-
-grid.CYB = -0.45; grid.CNB =  0.09; grid.CLB = -0.08;
-grid.CLQ =  3.5;  grid.CMQ = -12.0; grid.CLP = -0.55;
-grid.CYP = -0.20; grid.CNP = -0.05; grid.CNR = -0.12; grid.CLR =  0.10;
 end
 
-% ── Runtime lookup ─────────────────────────────────────────────────────────────
-
-function C = local_eval_lookup(x, u, geom, data)
-vel   = x(4:6);
-omega = x(10:12);
-V     = max(norm(vel), 1e-6);
-u_b   = vel(1); v_b = vel(2); w_b = vel(3);
-
-alpha = atan2(w_b, max(u_b, 1e-9));
-beta  = atan2(v_b, max(sqrt(u_b^2 + w_b^2), 1e-9));
-
-alt_m = max(-x(3), 0);
-[~, a_spd, ~, ~] = atmosisa(alt_m);
-mach  = V / max(a_spd, 1e-9);
-
-g    = data.grid;
-b    = max(geom.wing_span,              1e-9);
-cbar = max(geom.mean_aerodynamic_chord, 1e-9);
-
-a_clip = min(max(alpha, -data.alpha_max_rad), data.alpha_max_rad);
-m_clip = min(max(mach, min(g.mach_vec)), max(g.mach_vec));
-
-if numel(g.mach_vec) >= 2
-    CL = interp2(g.mach_vec, g.alpha_rad, g.CL, m_clip, a_clip, 'linear');
-    CD = interp2(g.mach_vec, g.alpha_rad, g.CD, m_clip, a_clip, 'linear');
-    Cm = interp2(g.mach_vec, g.alpha_rad, g.CM, m_clip, a_clip, 'linear');
-else
-    CL = interp1(g.alpha_rad, g.CL(:,1), a_clip, 'linear', 'extrap');
-    CD = interp1(g.alpha_rad, g.CD(:,1), a_clip, 'linear', 'extrap');
-    Cm = interp1(g.alpha_rad, g.CM(:,1), a_clip, 'linear', 'extrap');
+function interpolants = build_interpolants(static_tables,dynamic_tables,altitude_scale)
+static_fields = {'CL','CD','CM','CYB','CNB','CLB'};
+dynamic_fields = {'CLQ','CMQ','CLAD','CMAD','CLP','CYP','CNP','CNR','CLR'};
+interpolants = struct();
+for k = 1:numel(static_fields)
+    field = static_fields{k};
+    interpolants.(field) = make_interpolant(static_tables,field,altitude_scale);
+end
+for k = 1:numel(dynamic_fields)
+    field = dynamic_fields{k};
+    interpolants.(field) = make_interpolant(dynamic_tables,field,altitude_scale);
+end
 end
 
-if ~isfinite(CL)
-    CL = interp1(g.alpha_rad, g.CL(:,end), a_clip, 'linear', 'extrap');
-    CD = interp1(g.alpha_rad, g.CD(:,end), a_clip, 'linear', 'extrap');
-    Cm = interp1(g.alpha_rad, g.CM(:,end), a_clip, 'linear', 'extrap');
+function pair = make_interpolant(tables,field,altitude_scale)
+points = zeros(0,3);
+values = zeros(0,1);
+for k = 1:numel(tables)
+    table = tables(k);
+    field_values = table.(field)(:);
+    valid = isfinite(table.alpha_deg(:)) & isfinite(field_values);
+    count = sum(valid);
+    if count == 0
+        continue;
+    end
+    points = [points;[deg2rad(table.alpha_deg(valid)), repmat(table.mach,count,1), repmat(table.altitude_m/altitude_scale,count,1)]]; %#ok<AGROW>
+    values = [values;field_values(valid)]; %#ok<AGROW>
+end
+if size(points,1) < 4
+    pair = struct('linear',[],'nearest',[]);
+    return;
+end
+rounded_points = [round(points(:,1),10),round(points(:,2),8),round(points(:,3),10)];
+[~,unique_index] = unique(rounded_points,'rows','stable');
+points = points(unique_index,:);
+values = values(unique_index);
+pair = struct();
+pair.linear = scatteredInterpolant(points(:,1),points(:,2),points(:,3),values,'linear','none');
+pair.nearest = scatteredInterpolant(points(:,1),points(:,2),points(:,3),values,'nearest','nearest');
 end
 
-da = 0; de = 0; dr = 0;
+function C = evaluate_lookup(x,u,geom,data)
+x = x(:);
+u = u(:);
+if numel(x) ~= 12 || any(~isfinite(x))
+    error('b737datcom:InvalidState','State must be a finite 12-vector.');
+end
+
+velocity = x(4:6);
+rates = x(10:12);
+airspeed = norm(velocity);
+alpha = atan2(velocity(3),velocity(1));
+beta = atan2(velocity(2),hypot(velocity(1),velocity(3)));
+altitude_m = -x(3);
+[~,speed_of_sound,~,~] = FlightEnvironment.standard_atmosphere(altitude_m);
+Mach = airspeed/max(speed_of_sound,1e-12);
+query = [alpha,Mach,altitude_m/data.altitude_scale_m];
+
+[CL,valid_CL] = evaluate_field(data.interpolants.CL,query);
+[CD,valid_CD] = evaluate_field(data.interpolants.CD,query);
+[Cm,valid_Cm] = evaluate_field(data.interpolants.CM,query);
+[CYB,valid_CYB] = evaluate_field(data.interpolants.CYB,query);
+[CNB,valid_CNB] = evaluate_field(data.interpolants.CNB,query);
+[CLB,valid_CLB] = evaluate_field(data.interpolants.CLB,query);
+
+da = 0;
+de = 0;
+dr = 0;
 if numel(u) >= 1, da = u(1); end
 if numel(u) >= 2, de = u(2); end
 if numel(u) >= 3, dr = u(3); end
 
-CL = CL + data.control.CLDE * de;
-Cm = Cm + data.control.CMDE * de;
-CY = g.CYB * beta + data.control.CYDR * dr;
-Cl = g.CLB * beta + data.control.CLDA * da;
-Cn = g.CNB * beta + data.control.CNDR * dr + data.control.CNDA * da;
+CL = CL+data.control.CLDE*de;
+Cm = Cm+data.control.CMDE*de;
+CY = CYB*beta+data.control.CYDR*dr;
+Cl = CLB*beta+data.control.CLDA*da;
+Cn = CNB*beta+data.control.CNDR*dr+data.control.CNDA*da;
 
-if V > 1
-    p_hat = omega(1)*b    / (2*V);
-    q_hat = omega(2)*cbar / (2*V);
-    r_hat = omega(3)*b    / (2*V);
-    CL = CL + g.CLQ*q_hat;
-    Cm = Cm + g.CMQ*q_hat;
-    Cl = Cl + g.CLP*p_hat + g.CLR*r_hat;
-    Cn = Cn + g.CNP*p_hat + g.CNR*r_hat;
-    CY = CY + g.CYP*p_hat;
+dynamic_valid = true;
+if airspeed > 1 && any(abs(rates) > 1e-12)
+    [~,b,cbar] = geom.get_reference_geometry();
+    p_hat = rates(1)*b/(2*airspeed);
+    q_hat = rates(2)*cbar/(2*airspeed);
+    r_hat = rates(3)*b/(2*airspeed);
+    [CLQ,v1] = evaluate_field(data.interpolants.CLQ,query);
+    [CMQ,v2] = evaluate_field(data.interpolants.CMQ,query);
+    [CLP,v3] = evaluate_field(data.interpolants.CLP,query);
+    [CYP,v4] = evaluate_field(data.interpolants.CYP,query);
+    [CNP,v5] = evaluate_field(data.interpolants.CNP,query);
+    [CNR,v6] = evaluate_field(data.interpolants.CNR,query);
+    [CLR,v7] = evaluate_field(data.interpolants.CLR,query);
+    CL = CL+CLQ*q_hat;
+    Cm = Cm+CMQ*q_hat;
+    Cl = Cl+CLP*p_hat+CLR*r_hat;
+    CY = CY+CYP*p_hat;
+    Cn = Cn+CNP*p_hat+CNR*r_hat;
+    dynamic_valid = all([v1,v2,v3,v4,v5,v6,v7]);
 end
 
-CL = max(min(CL, data.CL_max_abs), -data.CL_max_abs);
-CD = max(CD, data.CD_min);
-
-C = struct('CL',CL,'CD',CD,'CY',CY,'Cl',Cl,'Cm',Cm,'Cn',Cn, ...
-    'takeoff_params',data.takeoff_params,'landing_params',data.landing_params);
+static_valid = all([valid_CL,valid_CD,valid_Cm, valid_CYB,valid_CNB,valid_CLB]);
+C = struct( ...
+    'CL',CL,'CD',CD,'CY',CY,'Cl',Cl,'Cm',Cm,'Cn',Cn, ...
+    'datcom_valid',static_valid && dynamic_valid, ...
+    'datcom_static_valid',static_valid, ...
+    'datcom_dynamic_valid',dynamic_valid, ...
+    'datcom_extrapolated',~(static_valid && dynamic_valid), ...
+    'datcom_query',struct('alpha_rad',alpha,'Mach',Mach, ...
+        'altitude_m',altitude_m), ...
+    'takeoff_params',data.takeoff_params, ...
+    'landing_params',data.landing_params);
 end
 
-% ── Case definition extraction ─────────────────────────────────────────────────
+function [value,valid] = evaluate_field(pair,query)
+if isempty(pair.linear)
+    value = 0;
+    valid = false;
+    return;
+end
+value = pair.linear(query(1),query(2),query(3));
+valid = isfinite(value);
+if ~valid
+    value = pair.nearest(query(1),query(2),query(3));
+end
+if ~isfinite(value)
+    value = 0;
+end
+end
 
-function case_defs = extract_case_definitions(lines, ft_to_m)
-case_defs = struct('caseid',{},'mach',{},'altitude_ft',{},'gamma_deg',{}, ...
-    'thrust_lbf_per_engine',{},'phase',{},'altitude_m',{},'gamma_rad',{});
+function control = default_control_model()
+control = struct('CLDE',0.00,'CMDE',-1.10, 'CYDR',0.18,'CNDR',-0.070, 'CLDA',0.070,'CNDA',0.010);
+end
 
-curr = struct('caseid',"",'mach',NaN,'altitude_ft',NaN,'gamma_deg',NaN, ...
-    'thrust_lbf_per_engine',NaN,'phase',"unknown",'altitude_m',NaN,'gamma_rad',NaN);
-in_case = false;
-
-for i = 1:numel(lines)
-    s = strtrim(lines{i});
-    if startsWith(s,'CASEID','IgnoreCase',true)
-        if in_case && strlength(curr.caseid) > 0
-            case_defs(end+1) = finalize_case(curr, ft_to_m); %#ok<AGROW>
-        end
-        in_case = true;
-        curr = struct('caseid',string(strtrim(s)),'mach',NaN,'altitude_ft',NaN, ...
-            'gamma_deg',NaN,'thrust_lbf_per_engine',NaN,'phase',infer_phase(s), ...
-            'altitude_m',NaN,'gamma_rad',NaN);
-        continue;
+function control = complete_control_model(control)
+defaults = default_control_model();
+fields = fieldnames(defaults);
+for k = 1:numel(fields)
+    field = fields{k};
+    if ~isfield(control,field) || isempty(control.(field))
+        control.(field) = defaults.(field);
     end
-    if ~in_case, continue; end
-    if contains(s,'MACH(1)','IgnoreCase',true) && isnan(curr.mach)
-        tok = regexp(s,'MACH\s*\(\s*1\s*\)\s*=\s*([-+]?\d*\.?\d+(?:[EeDd][-+]?\d+)?)','tokens','once');
-        if ~isempty(tok), curr.mach = str2double(strrep(tok{1},'D','E')); end
-    end
-    if contains(s,'ALT(1)','IgnoreCase',true) && isnan(curr.altitude_ft)
-        tok = regexp(s,'ALT\s*\(\s*1\s*\)\s*=\s*([-+]?\d*\.?\d+(?:[EeDd][-+]?\d+)?)','tokens','once');
-        if ~isempty(tok), curr.altitude_ft = str2double(strrep(tok{1},'D','E')); end
-    end
-    if contains(s,'GAMMA','IgnoreCase',true) && isnan(curr.gamma_deg)
-        tok = regexp(s,'GAMMA\s*=\s*([-+]?\d*\.?\d+(?:[EeDd][-+]?\d+)?)','tokens','once');
-        if ~isempty(tok), curr.gamma_deg = str2double(strrep(tok{1},'D','E')); end
-    end
-    if contains(s,'THSTCJ','IgnoreCase',true) && isnan(curr.thrust_lbf_per_engine)
-        tok = regexp(s,'THSTCJ\s*=\s*([-+]?\d*\.?\d+(?:[EeDd][-+]?\d+)?)','tokens','once');
-        if ~isempty(tok), curr.thrust_lbf_per_engine = str2double(strrep(tok{1},'D','E')); end
-    end
-end
-if in_case && strlength(curr.caseid) > 0
-    case_defs(end+1) = finalize_case(curr, ft_to_m);
-end
-end
-
-function c = finalize_case(c, ft_to_m)
-if isfinite(c.altitude_ft), c.altitude_m = c.altitude_ft*ft_to_m; else, c.altitude_m = NaN; end
-if isfinite(c.gamma_deg),   c.gamma_rad  = deg2rad(c.gamma_deg);  else, c.gamma_rad  = NaN; end
-end
-
-function phase = infer_phase(s)
-u = upper(char(s));
-if     contains(u,'TAKEOFF'),  phase = "takeoff";
-elseif contains(u,'CLIMB'),    phase = "climb";
-elseif contains(u,'CRUISE'),   phase = "cruise";
-elseif contains(u,'DESCENT'),  phase = "descent";
-elseif contains(u,'APPROACH'), phase = "approach";
-else,                           phase = "unknown";
-end
-end
-
-% ── Table extraction ────────────────────────────────────────────────────────────
-
-function tables = extract_aero_tables(lines)
-tables = struct('line',{},'mach',{},'altitude_ft',{},'gamma_deg',{}, ...
-    'alpha_deg',{},'CD',{},'CL',{},'CM',{},'config_label',{},'config_priority',{});
-
-current_mach   = NaN;
-current_alt    = NaN;
-current_gamma  = NaN;
-current_config = "";
-tcount = 0;
-
-for i = 1:numel(lines)
-    s = strtrim(lines{i});
-
-    % New Mach block: read flight conditions only — do NOT reset current_config
-    % The config label was already set by the preceding CHARACTERISTICS header
-    if contains(s,'MACH') && contains(s,'ALTITUDE') && contains(s,'VELOCITY') && contains(s,'REYNOLDS')
-        for j = i+1 : min(i+30, numel(lines))
-            sj  = strtrim(lines{j});
-            raw = sj;
-            if startsWith(raw,'0 '), raw = raw(3:end); end
-            vals = str2num(raw); %#ok<ST2NM>
-            if numel(vals) >= 6
-                m_cand = vals(1); a_cand = vals(2);
-                if m_cand >= 0.05 && m_cand <= 2.5 && a_cand >= 0 && a_cand < 100000
-                    current_mach = m_cand;
-                    current_alt  = a_cand;
-                    break;
-                end
-            end
-        end
-    end
-
-    % Configuration label — read from lines following the CHARACTERISTICS header
-    if contains(s,'CHARACTERISTICS AT ANGLE OF ATTACK')
-        current_config = "";
-        for j = i+1:min(i+8, numel(lines))
-            sl = strtrim(lines{j});
-            if isempty(sl), continue; end
-            su = upper(sl);
-            if contains(su,'CONFIGURATION') || contains(su,'WING') || contains(su,'BODY')
-                current_config = string(sl);
-                break;
-            end
-            if startsWith(sl,'Boeing','IgnoreCase',true) || startsWith(sl,'0 ')
-                break;
-            end
-        end
-    end
-
-    % Data table header line
-    if contains(s,'ALPHA') && contains(s,'CD') && contains(s,'CL') && contains(s,'CM')
-        lbl = upper(char(current_config));
-        if contains(lbl,'JET POWER') || contains(lbl,'DYNAMIC'), continue; end
-
-        config_priority = 0;
-        if     contains(lbl,'WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL'), config_priority = 5;
-        elseif contains(lbl,'WING-BODY-HORIZONTAL TAIL'),                config_priority = 4;
-        elseif contains(lbl,'WING-BODY-VERTICAL TAIL'),                  config_priority = 3;
-        elseif contains(lbl,'WING-BODY'),                                config_priority = 2;
-        elseif contains(lbl,'WING'),                                     config_priority = 1;
-        end
-        if config_priority < 1, continue; end
-
-        alpha = []; CD = []; CL = []; CM = [];
-        k = i + 1;
-        while k <= numel(lines)
-            dl = strtrim(lines{k});
-            if isempty(dl), k = k+1; continue; end
-            if strcmp(dl,'0') || strcmp(dl,'1'), k = k+1; continue; end
-            if contains(dl,'AUTOMATED STABILITY') || startsWith(dl,'0***') || ...
-               contains(dl,'DYNAMIC DERIVATIVES') || ...
-               contains(dl,'WING SECTION')         || contains(dl,'HORIZONTAL TAIL SECTION') || ...
-               contains(dl,'VERTICAL TAIL SECTION')|| startsWith(dl,'CASEID','IgnoreCase',true) || ...
-               contains(dl,'CHARACTERISTICS AT ANGLE OF ATTACK')
-                break;
-            end
-            vals = str2num(dl); %#ok<ST2NM>
-            if ~isempty(vals) && numel(vals) >= 4
-                a = vals(1); cd = vals(2); cl = vals(3); cm = vals(4);
-                if isfinite(a) && abs(a) < 40 && isfinite(cl) && isfinite(cd) && isfinite(cm)
-                    alpha(end+1,1) = a; CD(end+1,1) = cd; %#ok<AGROW>
-                    CL(end+1,1)   = cl; CM(end+1,1) = cm; %#ok<AGROW>
-                end
-            end
-            k = k + 1;
-        end
-
-        if numel(alpha) >= 8
-            [alpha_u, ia_u] = unique(alpha, 'stable');
-            if numel(alpha_u) < 4, continue; end
-            if ~isfinite(current_mach) || current_mach <= 0, continue; end
-            tcount = tcount + 1;
-            tables(tcount).line            = i;
-            tables(tcount).mach            = current_mach;
-            tables(tcount).altitude_ft     = current_alt;
-            tables(tcount).gamma_deg       = current_gamma;
-            tables(tcount).alpha_deg       = alpha_u;
-            tables(tcount).CD              = CD(ia_u);
-            tables(tcount).CL              = CL(ia_u);
-            tables(tcount).CM              = CM(ia_u);
-            tables(tcount).config_label    = current_config;
-            tables(tcount).config_priority = config_priority;
-        end
+    value = control.(field);
+    if ~isscalar(value) || ~isreal(value) || ~isfinite(value)
+        error('b737datcom:InvalidControlModel', 'Control derivative %s must be a finite scalar.',field);
     end
 end
-
-fprintf('Raw tables found: %d\n', tcount);
-tables = deduplicate_tables(tables);
 end
 
-function tables_out = deduplicate_tables(tables_in)
-if isempty(tables_in), tables_out = tables_in; return; end
-mach_vals   = round([tables_in.mach], 3);
-unique_mach = unique(mach_vals);
-keep = false(numel(tables_in),1);
-for im = 1:numel(unique_mach)
-    idx = find(abs(mach_vals - unique_mach(im)) < 0.001);
-    [~, best] = max([tables_in(idx).config_priority]);
-    keep(idx(best)) = true;
+function print_summary(data)
+fprintf('\n=== B737 DATCOM DATABASE ===\n');
+fprintf('Files               : %d\n',numel(data.source_files));
+fprintf('Static tables       : %d\n',numel(data.static_tables));
+fprintf('Dynamic tables      : %d\n',numel(data.dynamic_tables));
+fprintf('Mach range          : %.3f to %.3f (%d values)\n', min(data.grid.mach_vec),max(data.grid.mach_vec),numel(data.grid.mach_vec));
+fprintf('Altitude range      : %.0f to %.0f m (%d values)\n', min(data.grid.altitude_m),max(data.grid.altitude_m), numel(data.grid.altitude_m));
+fprintf('Alpha union         : %.1f to %.1f deg (%d values)\n', min(data.grid.alpha_deg),max(data.grid.alpha_deg), numel(data.grid.alpha_deg));
+fprintf('Reference S/b/c     : %.3f / %.3f / %.3f m\n', data.reference.sref_m2,data.reference.bref_m,data.reference.cbar_m);
+fprintf('Moment reference    : [%.3f %.3f %.3f] m\n', data.reference.moment_reference_m);
+fprintf('Control derivatives : %s\n',data.control_model_status);
+fprintf('Out-of-range action : %s\n',data.out_of_range_action);
 end
-tables_out = tables_in(keep);
+
+function tables = empty_static_tables()
+tables = struct('source_file',{},'configuration',{},'case_label',{}, ...
+    'config_priority',{},'mach',{},'altitude_m',{},'alpha_deg',{}, ...
+    'CD',{},'CL',{},'CM',{},'CYB',{},'CNB',{},'CLB',{}, ...
+    'sref_m2',{},'cbar_m',{},'bref_m',{},'moment_reference_m',{});
+end
+
+function tables = empty_dynamic_tables()
+tables = struct('source_file',{},'configuration',{},'case_label',{}, 'config_priority',{},'mach',{},'altitude_m',{},'alpha_deg',{}, 'CLQ',{},'CMQ',{},'CLAD',{},'CMAD',{},'CLP',{},'CYP',{}, 'CNP',{},'CNR',{},'CLR',{});
 end

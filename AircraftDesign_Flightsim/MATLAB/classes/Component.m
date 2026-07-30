@@ -243,16 +243,14 @@ classdef Component < handle
                 ref_frame = target_frame;
             end
 
-            fm_total = ForceMoment.zero(target_frame);
+            fm_total = ForceMoment.zero(target_frame, ref_frame);
 
             for k = 1:numel(obj.load_sources)
 
                 fm_local = obj.load_sources{k}.get_force_moment(x,u);
 
                 if isempty(fm_local) || ~isa(fm_local,'ForceMoment')
-                    error('Component:InvalidForceMoment', ...
-                        'Load source %d in component "%s" did not return ForceMoment.', ...
-                        k, obj.name);
+                    error('Component:InvalidForceMoment', 'Load source %d in component "%s" did not return ForceMoment.', k, obj.name);
                 end
 
                 fm_target = fm_local.transform_to(target_frame, ref_frame, x);
@@ -263,8 +261,7 @@ classdef Component < handle
 
             for k = 1:numel(obj.subcomponents)
 
-                fm_child = obj.subcomponents{k}.compute_force_moment( ...
-                    x, u, target_frame, ref_frame);
+                fm_child = obj.subcomponents{k}.compute_force_moment(x, u, target_frame, ref_frame);
 
                 fm_total.F = fm_total.F + fm_child.F;
                 fm_total.M = fm_total.M + fm_child.M;
@@ -297,8 +294,7 @@ classdef Component < handle
                     if ~isempty(obj.frame)
                         obj.mass_frame = obj.frame;
                     else
-                        error('Component:MissingMassFrame', ...
-                            'Component "%s" has mass but no mass_frame.', obj.name);
+                        error('Component:MissingMassFrame', 'Component "%s" has mass but no mass_frame.', obj.name);
                     end
                 end
 
@@ -318,8 +314,7 @@ classdef Component < handle
 
             for k = 1:numel(obj.subcomponents)
 
-                [m_k, cg_k, I_k] = obj.subcomponents{k}.compute_mass_properties_in_frame( ...
-                    x, target_frame, ref_frame);
+                [m_k, cg_k, I_k] = obj.subcomponents{k}.compute_mass_properties_in_frame(x, target_frame, ref_frame);
 
                 if m_k > 1e-9
                     m_list(end+1) = m_k; %#ok<AGROW>
@@ -366,9 +361,7 @@ classdef Component < handle
                 frame_name = string(obj.frame.name);
             end
 
-            fprintf('%s- %s  type=%s  frame=%s  mass=%.3f kg  load_sources=%d\n', ...
-                indent, char(obj.name), char(obj.type), char(frame_name), ...
-                obj.mass, numel(obj.load_sources));
+            fprintf('%s- %s  type=%s  frame=%s  mass=%.3f kg  load_sources=%d\n', indent, char(obj.name), char(obj.type), char(frame_name), obj.mass, numel(obj.load_sources));
 
             for k = 1:numel(obj.subcomponents)
                 obj.subcomponents{k}.print_tree(indent + "   ");

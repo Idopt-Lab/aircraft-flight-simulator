@@ -1,167 +1,32 @@
-function C = F16Lookup(state_vec, control_vec, geometry)
-
-alpha_range    = [-0.1750, -0.0870, 0.0000, 0.0870, 0.1750, 0.2620, 0.3490, 0.4360, 0.5240, 0.6110, 0.6980, 0.7850];
-elevator_range = [-0.4360, -0.2180, 0.0000, 0.2180, 0.4360];
-
-CLDh_table = [-0.6590, -0.7090, -0.7540, -0.7920, -0.8250;
-              -0.1510, -0.1960, -0.2380, -0.2780, -0.3160;
-               0.1830,  0.1410,  0.1000,  0.0590,  0.0170;
-               0.4910,  0.4540,  0.4140,  0.3710,  0.3260;
-               0.7970,  0.7630,  0.7250,  0.6800,  0.6300;
-               1.1080,  1.0790,  1.0410,  0.9930,  0.9400;
-               1.3950,  1.3660,  1.3270,  1.2740,  1.2140;
-               1.6150,  1.5870,  1.5470,  1.4900,  1.4270;
-               1.8040,  1.7770,  1.7370,  1.6740,  1.6100;
-               1.9000,  1.8720,  1.8290,  1.7660,  1.6990;
-               1.8980,  1.8690,  1.8220,  1.7570,  1.6890;
-               1.7530,  1.7240,  1.6740,  1.6120,  1.5460];
-
-CDDh_table = [0.2170, 0.1740, 0.1560, 0.1810, 0.2300;
-              0.0940, 0.0550, 0.0410, 0.0620, 0.1010;
-              0.0810, 0.0400, 0.0210, 0.0390, 0.0760;
-              0.1060, 0.0610, 0.0400, 0.0570, 0.1010;
-              0.1660, 0.1190, 0.0960, 0.1140, 0.1580;
-              0.2520, 0.2030, 0.1820, 0.2020, 0.2400;
-              0.4040, 0.3620, 0.3470, 0.3710, 0.4160;
-              0.6280, 0.5880, 0.5770, 0.6010, 0.6370;
-              0.8750, 0.8400, 0.8260, 0.8520, 0.8800;
-              1.1270, 1.0950, 1.0840, 1.1020, 1.1250;
-              1.3650, 1.3340, 1.3260, 1.3380, 1.3560;
-              1.5170, 1.4870, 1.4780, 1.4820, 1.4890];
-
-CmDh_table = [ 0.2050,  0.0810, -0.0460, -0.1740, -0.2590;
-               0.1680,  0.0770, -0.0200, -0.1450, -0.2020;
-               0.1860,  0.1070, -0.0090, -0.1210, -0.1840;
-               0.1960,  0.1100, -0.0050, -0.1270, -0.1930;
-               0.2130,  0.1110, -0.0060, -0.1290, -0.1990;
-               0.2510,  0.1410,  0.0100, -0.1020, -0.1500;
-               0.2450,  0.1270,  0.0060, -0.0970, -0.1600;
-               0.2380,  0.1190, -0.0010, -0.1130, -0.1670;
-               0.2520,  0.1330,  0.0140, -0.0870, -0.1040;
-               0.2310,  0.1080,  0.0000, -0.0840, -0.0760;
-               0.1980,  0.0810, -0.0130, -0.0690, -0.0410;
-               0.1920,  0.0930,  0.0320, -0.0060, -0.0050];
-
-CYb = -1.1460; Clb = -0.186; Cnb = 0.241;
-
-Cmalpha_M_mach = [0.6,  0.8,     0.9,     1.0,     1.1,     1.2];
-Cmalpha_M_data = [0.0,  0.0974, -0.3323, -0.9626, -0.8480, -0.7907];
-
-CLq = 28.9; Cmq = -5.23; Clp = -0.443; Cnr = -0.378;
-
-Clr_vs_alpha = [-0.126, -0.026,  0.063,  0.113,  0.208,  0.230,  0.319,  0.437,  0.680,  0.100,  0.447, -0.330];
-Cnp_vs_alpha = [-0.061, -0.052, -0.052,  0.012,  0.013,  0.024, -0.050, -0.150, -0.130, -0.158, -0.240, -0.150];
-CYp_vs_alpha = [-0.108, -0.108, -0.188,  0.110,  0.258,  0.226,  0.344,  0.362,  0.611,  0.529,  0.298, -0.227];
-CYr_vs_alpha = [ 0.882,  0.852,  0.876,  0.958,  0.962,  0.974,  0.819,  0.483,  0.590,  1.210, -0.493, -1.040];
-
-mach_wave = [0.0, 0.81, 1.1, 1.8];
-CD_wave   = [0.0, 0.00, 0.023, 0.015];
-
-%% Base drag — accounts for inlet, fuselage, stores not in table
-CD0_base = 0.015;
-
-vel      = state_vec(4:6);
-omega    = state_vec(10:12);
-altitude = max(-state_vec(3), 0);
-V        = max(norm(vel), 1e-6);
-alpha    = atan2(vel(3), max(abs(vel(1)), 1e-9));
-beta     = atan2(vel(2), max(sqrt(vel(1)^2 + vel(3)^2), 1e-9));
-[~, a, ~] = atmosisa(altitude);
-mach     = V / max(a, 1e-6);
-
-de = 0;
-if numel(control_vec) >= 2
-    de = control_vec(2);
+function C=F16Lookup(x,u,g)
+if ~isnumeric(x)||numel(x)<12,error("F16Lookup:InvalidState","x must contain at least 12 numeric states.");end
+if ~isnumeric(u),error("F16Lookup:InvalidControl","u must be numeric.");end
+persistent ar er CLT CDT CMT ClrA CnpA CYpA CYrA Mm Cma Mw CDw
+if isempty(ar)
+ar=[-0.175 -0.087 0 0.087 0.175 0.262 0.349 0.436 0.524 0.611 0.698 0.785]; er=[-0.436 -0.218 0 0.218 0.436];
+CLT=[-0.659 -0.709 -0.754 -0.792 -0.825;-0.151 -0.196 -0.238 -0.278 -0.316;0.183 0.141 0.100 0.059 0.017;0.491 0.454 0.414 0.371 0.326;0.797 0.763 0.725 0.680 0.630;1.108 1.079 1.041 0.993 0.940;1.395 1.366 1.327 1.274 1.214;1.615 1.587 1.547 1.490 1.427;1.804 1.777 1.737 1.674 1.610;1.900 1.872 1.829 1.766 1.699;1.898 1.869 1.822 1.757 1.689;1.753 1.724 1.674 1.612 1.546];
+CDT=[0.217 0.174 0.156 0.181 0.230;0.094 0.055 0.041 0.062 0.101;0.081 0.040 0.021 0.039 0.076;0.106 0.061 0.040 0.057 0.101;0.166 0.119 0.096 0.114 0.158;0.252 0.203 0.182 0.202 0.240;0.404 0.362 0.347 0.371 0.416;0.628 0.588 0.577 0.601 0.637;0.875 0.840 0.826 0.852 0.880;1.127 1.095 1.084 1.102 1.125;1.365 1.334 1.326 1.338 1.356;1.517 1.487 1.478 1.482 1.489];
+CMT=[0.205 0.081 -0.046 -0.174 -0.259;0.168 0.077 -0.020 -0.145 -0.202;0.186 0.107 -0.009 -0.121 -0.184;0.196 0.110 -0.005 -0.127 -0.193;0.213 0.111 -0.006 -0.129 -0.199;0.251 0.141 0.010 -0.102 -0.150;0.245 0.127 0.006 -0.097 -0.160;0.238 0.119 -0.001 -0.113 -0.167;0.252 0.133 0.014 -0.087 -0.104;0.231 0.108 0 -0.084 -0.076;0.198 0.081 -0.013 -0.069 -0.041;0.192 0.093 0.032 -0.006 -0.005];
+ClrA=[-0.126 -0.026 0.063 0.113 0.208 0.230 0.319 0.437 0.680 0.100 0.447 -0.330];
+CnpA=[-0.061 -0.052 -0.052 0.012 0.013 0.024 -0.050 -0.150 -0.130 -0.158 -0.240 -0.150];
+CYpA=[-0.108 -0.108 -0.188 0.110 0.258 0.226 0.344 0.362 0.611 0.529 0.298 -0.227];
+CYrA=[0.882 0.852 0.876 0.958 0.962 0.974 0.819 0.483 0.590 1.210 -0.493 -1.040];
+Mm=[0.6 0.8 0.9 1.0 1.1 1.2]; Cma=[0 0.0974 -0.3323 -0.9626 -0.8480 -0.7907]; Mw=[0 0.81 1.1 1.8]; CDw=[0 0 0.023 0.015];
 end
-
-S = geometry.wing_area;
-b = geometry.wing_span;
-if isprop(geometry, 'mean_aerodynamic_chord') && geometry.mean_aerodynamic_chord > 0
-    c = geometry.mean_aerodynamic_chord;
-elseif isprop(geometry, 'wing_chord') && geometry.wing_chord > 0
-    c = geometry.wing_chord;
-else
-    c = S / b;
+x=x(:);u=u(:);v=x(4:6);w=x(10:12);V=max(norm(v),1e-6);alpha=atan2(v(3),v(1));beta=atan2(v(2),hypot(v(1),v(3)));alt=max(-x(3),0);[~,a,~]=atmosisa(alt);M=V/max(a,1e-6);
+da=0;de=0;dr=0;if numel(u)>=1,da=u(1);end;if numel(u)>=2,de=u(2);end;if numel(u)>=3,dr=u(3);end
+[S,b,c]=g.get_reference_geometry();if ~(isfinite(S)&&S>0&&isfinite(b)&&b>0&&isfinite(c)&&c>0),error("F16Lookup:InvalidGeometry","Reference geometry must be positive.");end
+amax=g.aero_mach_max;blim=g.aero_beta_limit_rad;alim=g.aileron_limit_rad;rlim=g.rudder_limit_rad;aq=min(max(alpha,ar(1)),ar(end));eq=min(max(de,er(1)),er(end));daq=min(max(da,-alim),alim);drq=min(max(dr,-rlim),rlim);
+ec=[ar(1)-alpha;alpha-ar(end);er(1)-de;de-er(end);-alim-da;da-alim;-rlim-dr;dr-rlim;-blim-beta;beta-blim;-M;M-amax];ev=max([0;ec]);valid=ev<=1e-12;
+CL=interp2(er,ar,CLT,eq,aq,"linear");CD=interp2(er,ar,CDT,eq,aq,"linear")+interp1(Mw,CDw,min(max(M,Mw(1)),Mw(end)),"linear");Cm=interp2(er,ar,CMT,eq,aq,"linear");
+if M<=Mm(1),dCma=0;elseif M>=Mm(end),dCma=Cma(end);else,dCma=interp1(Mm,Cma,M,"linear");end
+Cm=Cm+dCma*aq;CY=-1.146*beta;Cl=-0.186*beta;Cn=0.241*beta;
+if V>1
+ph=w(1)*b/(2*V);qh=w(2)*c/(2*V);rh=w(3)*b/(2*V);CL=CL+28.9*qh;Cm=Cm-5.23*qh;
+Cl=Cl-0.443*ph+interp1(ar,ClrA,aq,"linear")*rh;Cn=Cn+interp1(ar,CnpA,aq,"linear")*ph-0.378*rh;CY=CY+interp1(ar,CYpA,aq,"linear")*ph+interp1(ar,CYrA,aq,"linear")*rh;
 end
-
-CL = interp2(elevator_range, alpha_range, CLDh_table, de, alpha, 'linear', 0);
-CD = interp2(elevator_range, alpha_range, CDDh_table, de, alpha, 'linear', 0);
-Cm = interp2(elevator_range, alpha_range, CmDh_table, de, alpha, 'linear', 0);
-
-CD = CD + CD0_base;
-
-CD_mach_increment = interp1(mach_wave, CD_wave, mach, 'linear', 'extrap');
-CD = CD + CD_mach_increment;
-
-Cmalpha = interp1(Cmalpha_M_mach, Cmalpha_M_data, mach, 'linear', 'extrap');
-Cm      = Cm + Cmalpha * alpha;
-
-CY = CYb * beta;
-Cl = Clb * beta;
-Cn = Cnb * beta;
-
-if V > 1
-    p_hat = omega(1) * b / (2 * V);
-    q_hat = omega(2) * c / (2 * V);
-    r_hat = omega(3) * b / (2 * V);
-
-    CL = CL + CLq * q_hat;
-    Cm = Cm + Cmq * q_hat;
-
-    Clr = interp1(alpha_range, Clr_vs_alpha, alpha, 'linear', 'extrap');
-    Cl  = Cl + Clp * p_hat + Clr * r_hat;
-
-    Cnp = interp1(alpha_range, Cnp_vs_alpha, alpha, 'linear', 'extrap');
-    Cn  = Cn + Cnp * p_hat + Cnr * r_hat;
-
-    CYp = interp1(alpha_range, CYp_vs_alpha, alpha, 'linear', 'extrap');
-    CYr = interp1(alpha_range, CYr_vs_alpha, alpha, 'linear', 'extrap');
-    CY  = CY + CYp * p_hat + CYr * r_hat;
-end
-
-takeoff_params = struct( ...
-    'mu_ground',                0.02, ...
-    'mu_rolling',               0.02, ...
-    'mu_braking',               0.35, ...
-    'safety_factor',            1.15, ...
-    'CLmax_takeoff',            1.80, ...
-    'V2_to_Vs_ratio',           1.20, ...
-    'VR_to_Vs_ratio',           1.10, ...
-    'V1_to_VR_ratio',           0.92, ...
-    'CD0_takeoff',              0.02, ...
-    'K_takeoff',                0.05, ...
-    'CLalpha_takeoff',          5.00, ...
-    'screen_height_takeoff_ft', 35,   ...
-    'rotation_alpha_deg',       10,   ...
-    'initial_climb_angle_deg',  10,   ...
-    'reaction_time_s',          1.0,  ...
-    'continue_time_after_VR_s', 2.0,  ...
-    'min_accel_mps2',           0.5,  ...
-    'min_reduced_accel_mps2',   0.3,  ...
-    'min_brake_decel_mps2',     1.0);
-
-landing_params = struct( ...
-    'mu_braking',               0.70, ...
-    'mu_spoiler',               0.00, ...
-    'mu_reverser',              0.00, ...
-    'approach_angle_deg',       3,    ...
-    'safety_factor',            1.67, ...
-    'CLmax_landing',            2.00, ...
-    'CD0_landing',              0.035,...
-    'CD_spoiler',               0.04, ...
-    'CD_reverser',              0.00, ...
-    'CL_landing_touchdown',     0.05, ...
-    'screen_height_landing_ft', 50,   ...
-    'flare_height_m',           5,    ...
-    'Vapp_to_Vs_ratio',         1.30, ...
-    'Vtd_to_Vapp_ratio',        0.88, ...
-    'idle_throttle',            0.05, ...
-    'use_idle_thrust',          true, ...
-    'min_brake_decel_mps2',     1.5);
-
-C = struct( ...
-    'CL', CL, 'CD', CD, 'CY', CY, ...
-    'Cl', Cl, 'Cm', Cm, 'Cn', Cn, ...
-    'takeoff_params',  takeoff_params, ...
-    'landing_params',  landing_params);
+Cl=Cl+0.05*daq;Cn=Cn-0.08*drq;
+C=struct("CL",CL,"CD",CD,"CY",CY,"Cl",Cl,"Cm",Cm,"Cn",Cn,"alpha_rad",alpha,"beta_rad",beta,"mach",M,"airspeed_mps",V,"altitude_m",alt, ...
+"alpha_used_rad",aq,"elevator_used_rad",eq,"valid",valid,"lookup_clamped",any(abs([aq-alpha,eq-de,daq-da,drq-dr])>1e-12)||M>Mw(end), ...
+"envelope_c",ec,"envelope_violation",ev,"aero_mach_max",amax);
 end

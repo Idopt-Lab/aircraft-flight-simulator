@@ -1,10 +1,12 @@
 clear; clc
 
+%% Aircraft object
+
 ac = Aircraft();
 
-ac.mass.set_mass_properties(0,0,0,0,0,0,0,[0 0 0]);
-ac.mass.set_fuel_capacity(0,0);
-ac.mass.set_fuel_mass(0);
+%% Geometry
+% Direct property assignment (not set_reference_geometry) since that
+% setter requires strictly positive values -- fill in real numbers below.
 
 ac.geometry.wing_area = 0;
 ac.geometry.wing_span = 0;
@@ -12,18 +14,36 @@ ac.geometry.mean_aerodynamic_chord = 0;
 ac.geometry.ref_area = 0;
 ac.geometry.ref_span = 0;
 ac.geometry.ref_chord = 0;
-
-ac.aero.set_lookup(@YourLookup);
+ac.geometry.set_reference_point([0 0 0]);
 
 cfg = ac.get_configurator();
+
+%% Mass properties
+
+cfg.add_component('name',"airframe",'type',"airframe", ...
+    'mass',0,'position',[0 0 0],'inertia',zeros(3));
+
+%% Aerodynamics
+% Replace @YourLookup with your own coefficient-lookup function handle,
+% e.g. one built by ExampleLookup.m or DATCOMLookup.m.
+
+cfg.add_aero_solver(CoefficientAerodynamics(@YourLookup),'name',"aero");
+
+%% Controls
+
 cfg.add_control_surface('name',"cs1",'surface_type',"generic",'classification',"primary",'axis',[0 0 0], ...
     'max_deflection',0,'min_deflection',0,'dCl',0,'dCm',0,'dCn',0);
+
+%% Propulsion
+
 cfg.add_propulsive_element('name',"pe1",'element_type',"generic",'max_output',0, ...
     'position',[0 0 0],'direction',[0 0 0],'fuel_rate',0,'thrust_model',[]);
 
 n_cs = numel(ac.control_surfaces);
 n_pe = numel(ac.propulsive_elements);
 n_total = n_cs + n_pe;
+
+%% Mission waypoints
 
 waypoints = struct();
 
@@ -62,29 +82,45 @@ waypoints(6).type = "landing";
 waypoints(6).altitude = 0;
 waypoints(6).mach = 0;
 
+%% Trim each waypoint
+% Fill in real variable bounds/initial guess before running -- lb = ub = 0
+% below is a degenerate (zero-width) trim search and will not converge.
+% Every waypoint below is trimmed level (gamma fixed at the waypoint's own
+% gamma, or 0 where the waypoint has none). Give climb/descent/takeoff
+% waypoints their own trim_cfg if you need gamma to be a free variable
+% instead.
+
 solver = ac.get_trim_solver();
-solver.trim_tolerance = 0;
+
+solver_cfg = struct();
+solver_cfg.residual_tolerance = 1e-5;
+solver_cfg.fmincon_options = optimoptions("fmincon","Display","none");
 
 for i = 1:numel(waypoints)
-    [~, a, ~, ~] = atmosisa(waypoints(i).altitude);
+    [~, a, ~, ~] = ac.get_atmosphere(waypoints(i).altitude);
     V = waypoints(i).mach * a;
 
-    switch string(waypoints(i).type)
-        case "takeoff"
-            [x_trim,u_trim,converged] = solver.solve_takeoff_rotation_trim(waypoints(i).altitude, V);
-        case "climb"
-            [x_trim,u_trim,converged] = solver.solve_climb_trim(waypoints(i).altitude, waypoints(i).mach, waypoints(i).gamma);
-        case "cruise"
-            [x_trim,u_trim,converged] = solver.solve_cruise_trim(waypoints(i).altitude, waypoints(i).mach);
-        case "dash"
-            [x_trim,u_trim,converged] = solver.solve_dash_trim(waypoints(i).altitude, waypoints(i).mach);
-        case "descent"
-            [x_trim,u_trim,converged] = solver.solve_descent_trim(waypoints(i).altitude, waypoints(i).mach, waypoints(i).gamma);
-        case "landing"
-            [x_trim,u_trim,converged] = solver.solve_landing_approach_trim(waypoints(i).altitude, waypoints(i).mach);
-        otherwise
-            [x_trim,u_trim,converged] = solver.solve_cruise_trim(waypoints(i).altitude, waypoints(i).mach);
+    condition = struct();
+    condition.altitude_m = waypoints(i).altitude;
+    condition.mach = waypoints(i).mach;
+
+    gamma_fixed = 0;
+    if isfield(waypoints,'gamma') && ~isempty(waypoints(i).gamma)
+        gamma_fixed = waypoints(i).gamma;
     end
+
+    trim_cfg = struct();
+    trim_cfg.variables = ["alpha","cs1","throttle"];
+    trim_cfg.residuals = ["Fx","Fz","My"];
+    trim_cfg.initial_guess = [0; 0; 0];
+    trim_cfg.lb = [0; 0; 0];
+    trim_cfg.ub = [0; 0; 0];
+    trim_cfg.weights = [1; 1; 1];
+    trim_cfg.fixed = struct('beta',0,'phi',0,'psi',0,'gamma',gamma_fixed, ...
+        'p',0,'q',0,'r',0);
+    trim_cfg.reference_frame_name = "body";
+
+    [x_trim,u_trim,converged] = solver.solve_trim(condition,trim_cfg,solver_cfg);
 
     waypoints(i).state = x_trim;
     waypoints(i).controls = u_trim;
@@ -98,6 +134,8 @@ for i = 1:numel(waypoints)
         waypoints(i).controls = zeros(n_total,1);
     end
 end
+
+%% Mission timeline
 
 timeline = struct();
 t = 0;
@@ -146,6 +184,8 @@ t = t + timeline(6).duration;
 
 total_duration = t;
 
+%% Sample mission profile
+
 N_points = 0;
 time_vector = linspace(0, total_duration, max(N_points,2));
 
@@ -175,6 +215,8 @@ for k = 1:numel(time_vector)
     state_ref(:,k) = waypoints(wp1).state*(1-tau) + waypoints(wp2).state*tau;
     control_ref(:,k) = waypoints(wp1).controls*(1-tau) + waypoints(wp2).controls*tau;
 end
+
+%% Mission export
 
 autopilot = [];
 autopilot_enabled = 0;

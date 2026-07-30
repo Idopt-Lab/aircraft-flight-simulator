@@ -2,22 +2,35 @@ classdef CoefficientAerodynamics < Aerodynamics
 
     properties
         coeff_lookup = []
+        control_effect_mode = "lookup_final"
     end
 
     methods
-
-        function obj = CoefficientAerodynamics(fhandle)
+        function obj = CoefficientAerodynamics(fhandle,control_effect_mode)
             if nargin >= 1
-                obj.coeff_lookup = fhandle;
+                obj.set_lookup(fhandle);
+            end
+            if nargin >= 2
+                obj.set_control_effect_mode(control_effect_mode);
             end
         end
 
-        function set_lookup(obj, fhandle)
+        function set_lookup(obj,fhandle)
+            if ~isa(fhandle,'function_handle')
+                error('CoefficientAerodynamics:InvalidLookup', 'Lookup must be a function handle.');
+            end
             obj.coeff_lookup = fhandle;
         end
 
-        function [F, M, coeff] = get_FM(obj, x, u, geom, aircraft) %#ok<INUSD>
+        function set_control_effect_mode(obj,mode)
+            mode = lower(strtrim(string(mode)));
+            if ~isscalar(mode) || ~any(mode == ["lookup_final","surface_increments"])
+                error('CoefficientAerodynamics:InvalidControlEffectMode', ['Mode must be "lookup_final" or ', '"surface_increments".']);
+            end
+            obj.control_effect_mode = mode;
+        end
 
+        function [F,M,coeff] = get_FM(obj,x,u,geom,aircraft)
             if isempty(obj.coeff_lookup)
                 F = zeros(3,1);
                 M = zeros(3,1);
@@ -25,93 +38,153 @@ classdef CoefficientAerodynamics < Aerodynamics
                 return;
             end
 
-            u_b = x(4);
-            v_b = x(5);
-            w_b = x(6);
+            x = x(:);
+            u = u(:);
+            if numel(x) ~= 12 || ~isreal(x) || any(~isfinite(x))
+                error('CoefficientAerodynamics:InvalidState', 'State must be a finite real 12-vector.');
+            end
 
-            p = x(10);
-            q = x(11);
-            r = x(12);
+            if isa(aircraft,'Aircraft') && isvalid(aircraft)
+                air = aircraft.get_air_data(x);
+            else
+                air = FlightEnvironment.standard_air_data(x);
+            end
 
-            V = sqrt(u_b^2 + v_b^2 + w_b^2);
-
-            if V < 1e-9
+            if air.airspeed_mps < 1e-9
                 F = zeros(3,1);
                 M = zeros(3,1);
                 coeff = obj.empty_coeff_struct(0);
                 return;
             end
 
-            alpha = atan2(w_b, u_b);
-            beta  = atan2(v_b, sqrt(u_b^2 + w_b^2));
-
-            alt = max(-x(3), 0);
-            [~, ~, ~, rho] = atmosisa(alt);
-            qbar = 0.5 * rho * V^2;
-
-            S = max(geom.wing_area, 1e-9);
-            b = max(geom.wing_span, 1e-9);
-
-            if isprop(geom,'mean_aerodynamic_chord') && geom.mean_aerodynamic_chord > 0
-                cbar = geom.mean_aerodynamic_chord;
-            elseif isprop(geom,'wing_chord') && geom.wing_chord > 0
-                cbar = geom.wing_chord;
-            else
-                cbar = S / b;
+            [S,b,cbar] = geom.get_reference_geometry();
+            if any(~isfinite([S b cbar])) || any([S b cbar] <= 0)
+                error('CoefficientAerodynamics:InvalidGeometry', 'Reference area, span and chord must be positive.');
             end
 
-            c = obj.coeff_lookup(x, u, geom);
+            x_air = x;
+            x_air(4:6) = air.air_velocity_body_mps;
+            lookup_coeff = obj.evaluate_lookup(obj.coeff_lookup,x_air,u,geom,aircraft);
+            if ~isstruct(lookup_coeff)
+                error('CoefficientAerodynamics:InvalidLookupOutput', 'Coefficient lookup must return a struct.');
+            end
 
-            CL = obj.get_struct_field_or(c, 'CL', 0);
-            CD = obj.get_struct_field_or(c, 'CD', 0);
-            CY = obj.get_struct_field_or(c, 'CY', 0);
-            Cl = obj.get_struct_field_or(c, 'Cl', 0);
-            Cm = obj.get_struct_field_or(c, 'Cm', 0);
-            Cn = obj.get_struct_field_or(c, 'Cn', 0);
+            obj.validate_lookup_reference(lookup_coeff,geom);
+            base = obj.read_six_coefficients(lookup_coeff);
+            increment = obj.control_increments(u,aircraft);
 
-            CY = CY + obj.get_struct_field_or(c, 'CYb', 0) * beta;
-            Cl = Cl + obj.get_struct_field_or(c, 'Clb', 0) * beta;
-            Cm = Cm + obj.get_struct_field_or(c, 'Cma', 0) * alpha;
-            Cn = Cn + obj.get_struct_field_or(c, 'Cnb', 0) * beta;
+            CL = base.CL+increment.CL;
+            CD = base.CD+increment.CD;
+            CY = base.CY+increment.CY;
+            Cl = base.Cl+increment.Cl;
+            Cm = base.Cm+increment.Cm;
+            Cn = base.Cn+increment.Cn;
 
-            p_hat = p * b    / (2 * V);
-            q_hat = q * cbar / (2 * V);
-            r_hat = r * b    / (2 * V);
+            L = CL*air.qbar_Pa*S;
+            D = CD*air.qbar_Pa*S;
+            Y = CY*air.qbar_Pa*S;
+            ca = cos(air.alpha_rad);
+            sa = sin(air.alpha_rad);
+            cb = cos(air.beta_rad);
+            sb = sin(air.beta_rad);
+            C_wind_to_body = [ca*cb,-ca*sb,-sa; sb,cb,0; sa*cb,-sa*sb,ca];
 
-            CL = CL + obj.get_struct_field_or(c, 'CLq', 0) * q_hat;
-            CD = CD + obj.get_struct_field_or(c, 'CDq', 0) * q_hat;
+            F = C_wind_to_body*[-D;Y;-L];
+            M = [Cl*air.qbar_Pa*S*b; Cm*air.qbar_Pa*S*cbar; Cn*air.qbar_Pa*S*b];
 
-            CY = CY + obj.get_struct_field_or(c, 'CYp', 0) * p_hat ...
-                    + obj.get_struct_field_or(c, 'CYr', 0) * r_hat;
+            coeff = lookup_coeff;
+            coeff.CL = CL;
+            coeff.CD = CD;
+            coeff.CY = CY;
+            coeff.Cl = Cl;
+            coeff.Cm = Cm;
+            coeff.Cn = Cn;
+            coeff.lookup_base = base;
+            coeff.control_increment = increment;
+            coeff.control_effect_mode = obj.control_effect_mode;
+            coeff.control_effects_included = true;
+            coeff.output_axes = "body";
+            coeff.moment_reference_point_body_m = geom.get_reference_point();
+            coeff.alpha_rad = air.alpha_rad;
+            coeff.beta_rad = air.beta_rad;
+            coeff.airspeed_mps = air.airspeed_mps;
+            coeff.Mach = air.Mach;
+            coeff.altitude_m = air.altitude_m;
+            coeff.temperature_K = air.temperature_K;
+            coeff.pressure_Pa = air.pressure_Pa;
+            coeff.density_kgpm3 = air.density_kgpm3;
+            coeff.qbar_Pa = air.qbar_Pa;
+            coeff.ground_velocity_body_mps = air.ground_velocity_body_mps;
+            coeff.ground_velocity_ned_mps = air.ground_velocity_ned_mps;
+            coeff.ground_speed_mps = air.ground_speed_mps;
+            coeff.air_velocity_body_mps = air.air_velocity_body_mps;
+            coeff.air_velocity_ned_mps = air.air_velocity_ned_mps;
+            coeff.wind_body_mps = air.wind_body_mps;
+            coeff.wind_ned_mps = air.wind_ned_mps;
+        end
+    end
 
-            Cl = Cl + obj.get_struct_field_or(c, 'Clp', 0) * p_hat ...
-                    + obj.get_struct_field_or(c, 'Clr', 0) * r_hat;
-
-            Cm = Cm + obj.get_struct_field_or(c, 'Cmq', 0) * q_hat;
-
-            Cn = Cn + obj.get_struct_field_or(c, 'Cnp', 0) * p_hat ...
-                    + obj.get_struct_field_or(c, 'Cnr', 0) * r_hat;
-
-            coeff = struct('CL',CL,'CD',CD,'CY',CY,'Cl',Cl,'Cm',Cm,'Cn',Cn);
-
-            L  = CL * qbar * S;
-            D  = CD * qbar * S;
-            Y  = CY * qbar * S;
-
-            Mx = Cl * qbar * S * b;
-            My = Cm * qbar * S * cbar;
-            Mz = Cn * qbar * S * b;
-
-            % IMPORTANT:
-            % Output is in the aerodynamic model's native frame.
-            % Here, force is WIND AXIS.
-            % The AeroLoadSolver frame must therefore be a wind-axis frame.
-            F = [-D; Y; -L];
-
-            % These moments must be interpreted in the same output frame
-            % unless your coefficient convention says body/stability axis.
-            M = [Mx; My; Mz];
+    methods (Access = private)
+        function coeff = read_six_coefficients(obj,data)
+            names = {'CL','CD','CY','Cl','Cm','Cn'};
+            coeff = struct();
+            for k = 1:numel(names)
+                name = names{k};
+                value = obj.get_struct_field_or(data,name,0);
+                coeff.(name) = obj.validate_coefficient(value,name);
+            end
         end
 
+        function increment = control_increments(obj,u,aircraft)
+            increment = obj.empty_coeff_struct(0);
+            if obj.control_effect_mode == "lookup_final"
+                return;
+            end
+            if ~isa(aircraft,'Aircraft') || ~isvalid(aircraft)
+                error('CoefficientAerodynamics:AircraftRequired', 'surface_increments mode requires a valid Aircraft.');
+            end
+
+            n_surface = numel(aircraft.control_surfaces);
+            if numel(u) < n_surface
+                error('CoefficientAerodynamics:ControlSizeMismatch', 'Control vector has fewer entries than control surfaces.');
+            end
+
+            for k = 1:n_surface
+                cs = aircraft.control_surfaces(k);
+                delta = u(k);
+                increment.CL = increment.CL+cs.dCL_force*delta;
+                increment.CD = increment.CD+cs.dCD_force*delta;
+                increment.CY = increment.CY+cs.dCY_force*delta;
+                increment.Cl = increment.Cl+cs.dCl*delta;
+                increment.Cm = increment.Cm+cs.dCm*delta;
+                increment.Cn = increment.Cn+cs.dCn*delta;
+            end
+        end
+
+        function validate_lookup_reference(obj,data,geom)
+            if isfield(data,'control_effects_included') && ~isempty(data.control_effects_included)
+                included = data.control_effects_included;
+                if ~isscalar(included) || ~(islogical(included) || isnumeric(included)) || (isnumeric(included) && (~isfinite(included) || ~any(included == [0 1])))
+                    error('CoefficientAerodynamics:InvalidControlMetadata', 'control_effects_included must be a logical scalar.');
+                end
+                expected = obj.control_effect_mode == "lookup_final";
+                if logical(included) ~= expected
+                    error('CoefficientAerodynamics:ControlContractMismatch', ['Lookup control-effect metadata conflicts with ', 'control_effect_mode.']);
+                end
+            end
+            if isfield(data,'moment_reference_point_body_m') && ~isempty(data.moment_reference_point_body_m)
+                supplied = data.moment_reference_point_body_m(:);
+                expected = geom.get_reference_point();
+                if numel(supplied) ~= 3 || any(~isfinite(supplied)) || norm(supplied-expected) > 1e-9
+                    error('CoefficientAerodynamics:ReferencePointMismatch', ['Lookup moment reference does not match the ', 'geometry reference point.']);
+                end
+            end
+            if isfield(data,'output_axes')
+                axes_name = lower(string(data.output_axes));
+                if ~isscalar(axes_name) || axes_name ~= "body"
+                    error('CoefficientAerodynamics:OutputAxesMismatch', 'Coefficient lookup output_axes must be "body".');
+                end
+            end
+        end
     end
 end

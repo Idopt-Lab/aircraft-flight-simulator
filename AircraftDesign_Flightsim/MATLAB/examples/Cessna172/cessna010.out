@@ -1,0 +1,1228 @@
+ THIS SOFTWARE AND ANY ACCOMPANYING DOCUMENTATION
+ IS RELEASED "AS IS".  THE U.S. GOVERNMENT MAKES NO
+ WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, CONCERNING
+ THIS SOFTWARE AND ANY ACCOMPANYING DOCUMENTATION,
+ INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OF
+ MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ IN NO EVENT WILL THE U.S. GOVERNMENT BE LIABLE FOR ANY
+ DAMAGES, INCLUDING LOST PROFITS, LOST SAVINGS OR OTHER
+ INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE 
+ USE, OR INABILITY TO USE, THIS SOFTWARE OR ANY
+ ACCOMPANYING DOCUMENTATION, EVEN IF INFORMED IN ADVANCE
+ OF THE POSSIBILITY OF SUCH DAMAGES.
+  ****************************************************
+  *    USAF STABILITY AND CONTROL  DIGITAL DATCOM    *
+  *    PROGRAM REV. JAN 96   DIRECT INQUIRIES TO:    *
+  *    WRIGHT LABORATORY  (WL/FIGC)  ATTN: W. BLAKE  *
+  *      WRIGHT PATTERSON AFB, OHIO  45433           *
+  *    PHONE (513) 255-6764,   FAX (513) 258-4054    *
+  ****************************************************
+ Preparing to start the big loop
+ At 1000
+1                         CONERR - INPUT ERROR CHECKING
+0 ERROR CODES - N* DENOTES THE NUMBER OF OCCURENCES OF EACH ERROR
+0 A - UNKNOWN VARIABLE NAME
+0 B - MISSING EQUAL SIGN FOLLOWING VARIABLE NAME
+0 C - NON-ARRAY VARIABLE HAS AN ARRAY ELEMENT DESIGNATION - (N)
+0 D - NON-ARRAY VARIABLE HAS MULTIPLE VALUES ASSIGNED
+0 E - ASSIGNED VALUES EXCEED ARRAY DIMENSION
+0 F - SYNTAX ERROR
+
+0******************************  INPUT DATA CARDS  ******************************
+
+ CASEID Cessna 172 - Full Aircraft M0.10                                         
+ DIM M                                                                           
+ DERIV RAD                                                                       
+  $FLTCON                                                                        
+   LOOP=3.0,                                                                     
+   NMACH=1.0,                                                                    
+   MACH(1)=0.10,                                                                 
+   NALT=8.0,                                                                     
+   ALT(1)=0.0,500.0,1000.0,1500.0,                                               
+   ALT(5)=2000.0,2500.0,3000.0,3658.0,                                           
+   NALPHA=15.0,                                                                  
+   ALSCHD(1)=-8.0,-6.0,-4.0,-2.0,0.0,                                            
+   ALSCHD(6)=2.0,4.0,6.0,8.0,10.0,                                               
+   ALSCHD(11)=12.0,14.0,16.0,18.0,20.0$                                          
+  $OPTINS                                                                        
+   SREF=16.17,                                                                   
+   CBARR=1.50,                                                                   
+   BLREF=10.98$                                                                  
+  $SYNTHS                                                                        
+   XCG=2.11,                                                                     
+   ZCG=1.26,                                                                     
+   XW=1.68,                                                                      
+   ZW=2.04,                                                                      
+   ALIW=1.5,                                                                     
+   XH=6.16,                                                                      
+   ZH=1.68,                                                                      
+   ALIH=0.0,                                                                     
+   XV=5.88,                                                                      
+   ZV=1.55,                                                                      
+   SCALE=1.0,                                                                    
+   VERTUP=.TRUE.$                                                                
+  $BODY                                                                          
+   NX=8.0,                                                                       
+   ITYPE=2.0,                                                                    
+   METHOD=2.0,                                                                   
+   X(1)=0.10,0.30,0.77,1.22,1.68,3.40,3.91,7.41,                                 
+   R(1)=0.14,0.32,0.49,0.52,0.72,0.59,0.44,0.10,                                 
+   ZU(1)=1.42,1.49,1.59,1.65,2.04,1.98,1.77,1.75,                                
+   ZL(1)=1.14,0.85,0.61,0.61,0.61,0.80,0.90,1.55$                                
+ NACA-W-4-2412                                                                   
+  $WGPLNF                                                                        
+   CHRDR=1.626,                                                                  
+   CHRDBP=1.626,                                                                 
+   CHRDTP=1.13,                                                                  
+   SSPN=5.49,                                                                    
+   SSPNE=4.75,                                                                   
+   SSPNOP=2.941,                                                                 
+   SAVSI=0.0,                                                                    
+   SAVSO=3.0,                                                                    
+   CHSTAT=0.0,                                                                   
+   TWISTA=-3.0,                                                                  
+   DHDADI=1.7333,                                                                
+   DHDADO=1.7333,                                                                
+   TYPE=1.0$                                                                     
+ NACA-V-4-0009                                                                   
+  $VTPLNF                                                                        
+   CHRDR=1.53,                                                                   
+   CHRDTP=0.70,                                                                  
+   SSPN=1.62,                                                                    
+   SSPNE=1.42,                                                                   
+   SAVSI=33.0,                                                                   
+   CHSTAT=0.25,                                                                  
+   TYPE=1.0$                                                                     
+ NACA-H-4-0012                                                                   
+  $HTPLNF                                                                        
+   CHRDR=1.24,                                                                   
+   CHRDTP=0.77,                                                                  
+   SSPN=1.73,                                                                    
+   SSPNE=1.50,                                                                   
+   SAVSI=9.0,                                                                    
+   CHSTAT=0.0,                                                                   
+   TWISTA=0.0,                                                                   
+   DHDADI=0.0,                                                                   
+   TYPE=1.0$                                                                     
+  $SYMFLP                                                                        
+   FTYPE=1.0,                                                                    
+   SPANFI=0.231,                                                                 
+   SPANFO=1.727,                                                                 
+   CHRDFI=0.56,                                                                  
+   CHRDFO=0.27,                                                                  
+   NTYPE=1.0,                                                                    
+   NDELTA=9.0,                                                                   
+   DELTA(1)=-26.0,-20.0,-10.0,-5.0,0.0,                                          
+   DELTA(6)=7.5,15.0,22.5,28.0$                                                  
+ DAMP                                                                            
+ NEXT CASE                                                                       
+1          THE FOLLOWING IS A LIST OF ALL INPUT CARDS FOR THIS CASE.
+0
+ CASEID Cessna 172 - Full Aircraft M0.10                                         
+ DIM M                                                                           
+ DERIV RAD                                                                       
+  $FLTCON                                                                        
+   LOOP=3.0,                                                                     
+   NMACH=1.0,                                                                    
+   MACH(1)=0.10,                                                                 
+   NALT=8.0,                                                                     
+   ALT(1)=0.0,500.0,1000.0,1500.0,                                               
+   ALT(5)=2000.0,2500.0,3000.0,3658.0,                                           
+   NALPHA=15.0,                                                                  
+   ALSCHD(1)=-8.0,-6.0,-4.0,-2.0,0.0,                                            
+   ALSCHD(6)=2.0,4.0,6.0,8.0,10.0,                                               
+   ALSCHD(11)=12.0,14.0,16.0,18.0,20.0$                                          
+  $OPTINS                                                                        
+   SREF=16.17,                                                                   
+   CBARR=1.50,                                                                   
+   BLREF=10.98$                                                                  
+  $SYNTHS                                                                        
+   XCG=2.11,                                                                     
+   ZCG=1.26,                                                                     
+   XW=1.68,                                                                      
+   ZW=2.04,                                                                      
+   ALIW=1.5,                                                                     
+   XH=6.16,                                                                      
+   ZH=1.68,                                                                      
+   ALIH=0.0,                                                                     
+   XV=5.88,                                                                      
+   ZV=1.55,                                                                      
+   SCALE=1.0,                                                                    
+   VERTUP=.TRUE.$                                                                
+  $BODY                                                                          
+   NX=8.0,                                                                       
+   ITYPE=2.0,                                                                    
+   METHOD=2.0,                                                                   
+   X(1)=0.10,0.30,0.77,1.22,1.68,3.40,3.91,7.41,                                 
+   R(1)=0.14,0.32,0.49,0.52,0.72,0.59,0.44,0.10,                                 
+   ZU(1)=1.42,1.49,1.59,1.65,2.04,1.98,1.77,1.75,                                
+   ZL(1)=1.14,0.85,0.61,0.61,0.61,0.80,0.90,1.55$                                
+ NACA-W-4-2412                                                                   
+  $WGPLNF                                                                        
+   CHRDR=1.626,                                                                  
+   CHRDBP=1.626,                                                                 
+   CHRDTP=1.13,                                                                  
+   SSPN=5.49,                                                                    
+   SSPNE=4.75,                                                                   
+   SSPNOP=2.941,                                                                 
+   SAVSI=0.0,                                                                    
+   SAVSO=3.0,                                                                    
+   CHSTAT=0.0,                                                                   
+   TWISTA=-3.0,                                                                  
+   DHDADI=1.7333,                                                                
+   DHDADO=1.7333,                                                                
+   TYPE=1.0$                                                                     
+ NACA-V-4-0009                                                                   
+  $VTPLNF                                                                        
+   CHRDR=1.53,                                                                   
+   CHRDTP=0.70,                                                                  
+   SSPN=1.62,                                                                    
+   SSPNE=1.42,                                                                   
+   SAVSI=33.0,                                                                   
+   CHSTAT=0.25,                                                                  
+   TYPE=1.0$                                                                     
+ NACA-H-4-0012                                                                   
+  $HTPLNF                                                                        
+   CHRDR=1.24,                                                                   
+   CHRDTP=0.77,                                                                  
+   SSPN=1.73,                                                                    
+   SSPNE=1.50,                                                                   
+   SAVSI=9.0,                                                                    
+   CHSTAT=0.0,                                                                   
+   TWISTA=0.0,                                                                   
+   DHDADI=0.0,                                                                   
+   TYPE=1.0$                                                                     
+  $SYMFLP                                                                        
+   FTYPE=1.0,                                                                    
+   SPANFI=0.231,                                                                 
+   SPANFO=1.727,                                                                 
+   CHRDFI=0.56,                                                                  
+   CHRDFO=0.27,                                                                  
+   NTYPE=1.0,                                                                    
+   NDELTA=9.0,                                                                   
+   DELTA(1)=-26.0,-20.0,-10.0,-5.0,0.0,                                          
+   DELTA(6)=7.5,15.0,22.5,28.0$                                                  
+ DAMP                                                                            
+ NEXT CASE                                                                       
+0 INPUT DIMENSIONS ARE IN M , SCALE FACTOR IS 1.0000
+
+ Return to main program from M01O01
+1                             AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM   
+                                                        WING SECTION DEFINITION
+0                                 IDEAL ANGLE OF ATTACK =   0.25757 DEG.
+
+                              ZERO LIFT ANGLE OF ATTACK =  -1.87967 DEG.
+
+                                 IDEAL LIFT COEFFICIENT =   0.25602
+
+                  ZERO LIFT PITCHING MOMENT COEFFICIENT =  -0.05087
+
+                             MACH ZERO LIFT-CURVE-SLOPE =   0.09617 /DEG.
+
+                                    LEADING EDGE RADIUS =   0.01587 FRACTION CHORD
+
+                              MAXIMUM AIRFOIL THICKNESS =   0.12000 FRACTION CHORD
+
+                                                DELTA-Y =   3.16898 PERCENT CHORD
+
+
+0                         MACH= 0.1000 LIFT-CURVE-SLOPE =   0.09654 /DEG.      XAC =   0.25808
+1                             AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM   
+                                                   HORIZONTAL TAIL SECTION DEFINITION
+0                                 IDEAL ANGLE OF ATTACK =   0.00000 DEG.
+
+                              ZERO LIFT ANGLE OF ATTACK =   0.00000 DEG.
+
+                                 IDEAL LIFT COEFFICIENT =   0.00000
+
+                  ZERO LIFT PITCHING MOMENT COEFFICIENT =   0.00000
+
+                             MACH ZERO LIFT-CURVE-SLOPE =   0.09596 /DEG.
+
+                                    LEADING EDGE RADIUS =   0.01587 FRACTION CHORD
+
+                              MAXIMUM AIRFOIL THICKNESS =   0.12000 FRACTION CHORD
+
+                                                DELTA-Y =   3.16898 PERCENT CHORD
+
+
+0                         MACH= 0.1000 LIFT-CURVE-SLOPE =   0.09636 /DEG.      XAC =   0.25852
+1                             AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM   
+                                                    VERTICAL TAIL SECTION DEFINITION
+0                                 IDEAL ANGLE OF ATTACK =   0.00000 DEG.
+
+                              ZERO LIFT ANGLE OF ATTACK =   0.00000 DEG.
+
+                                 IDEAL LIFT COEFFICIENT =   0.00000
+
+                  ZERO LIFT PITCHING MOMENT COEFFICIENT =   0.00000
+
+                             MACH ZERO LIFT-CURVE-SLOPE =   0.09830 /DEG.
+
+                                    LEADING EDGE RADIUS =   0.00893 FRACTION CHORD
+
+                              MAXIMUM AIRFOIL THICKNESS =   0.09000 FRACTION CHORD
+
+                                                DELTA-Y =   2.37673 PERCENT CHORD
+
+
+0                         MACH= 0.1000 LIFT-CURVE-SLOPE =   0.09873 /DEG.      XAC =   0.25648
+ Return to main program from M50O62
+ Return to main program from M02O02
+ Return to main program from M51O63
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100       0.00      34.03   1.0133E+05     288.150     2.3190E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.036   -0.620    0.1096  -0.619   -0.051   -0.177    5.971E+00   -7.658E-02   -2.944E-01    2.475E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0938  -0.418   -0.017   -0.224    5.664E+00   -4.475E-01                             -1.916E-01
+   -4.0    0.021   -0.225    0.0784  -0.226    0.005   -0.347    5.453E+00   -6.668E-01                             -1.976E-01
+   -2.0    0.019   -0.037    0.0473  -0.038    0.017   -1.245    5.355E+00   -9.112E-01                             -2.031E-01
+    0.0    0.020    0.149    0.0148   0.149    0.020    0.099    5.464E+00   -9.756E-01                             -2.085E-01
+    2.0    0.024    0.344   -0.0208   0.345    0.012   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.032    0.548   -0.0600   0.549   -0.006   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.044    0.759   -0.1036   0.759   -0.035   -0.137    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.061    0.976   -0.1559   0.975   -0.075   -0.160    6.296E+00   -1.595E+00                             -2.335E-01
+   10.0    0.082    1.198   -0.2150   1.194   -0.127   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.107    1.415   -0.2851   1.407   -0.190   -0.203    5.629E+00   -2.178E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3671   1.575   -0.259   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.151    1.738   -0.4623   1.712   -0.334   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.169    1.850   -0.5659   1.812   -0.411   -0.312    2.625E+00   -3.084E+00                             -2.578E-01
+   20.0    0.183    1.921     NA      1.868   -0.485    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.911     -3.070        0.539
+                                     -6.0      0.937     -1.992        0.534
+                                     -4.0      0.996     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100       0.00      34.03   1.0133E+05     288.150     2.3190E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.507E+00   -1.521E+01     2.765E+00   -8.208E+00   -5.265E-01   -3.840E-02    3.552E-02   -4.826E-02   -9.856E-02
+    -6.00                               2.818E+00   -8.365E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.715E-02   -6.299E-02
+    -4.00                               2.884E+00   -8.561E+00   -4.789E-01   -4.308E-02    1.217E-02   -4.690E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.740E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.856E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.058E-01   -4.904E-02   -2.263E-02   -5.049E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.328E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.413E-01   -5.385E-02   -4.660E-02   -5.702E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.522E-01   -5.647E-02   -5.895E-02   -6.177E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.262E-02   -6.754E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.687E-01   -6.266E-02   -9.168E-02   -7.397E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.933E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.380E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.570E-01   -6.748E-02   -1.447E-01   -8.683E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.226E-02   -6.605E-02   -1.540E-01   -8.780E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100       0.00      34.03   4.4198E+01     933.606     2.1544E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.151     0.3486     0.123      0.01734                  NDM      -6.376E-03  -1.415E-02
+      -20.0    -0.139     0.3224     0.102      0.01073                  NDM                  -1.336E-02
+      -10.0    -0.095     0.2162     0.059      0.00387                  NDM                  -1.171E-02
+       -5.0    -0.048     0.1081     0.030      0.00189                  NDM                  -1.171E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.171E-02
+        7.5     0.071    -0.1622     0.045      0.00287                  NDM                  -1.171E-02
+       15.0     0.134    -0.3045     0.082      0.00700                  NDM                  -1.210E-02
+       22.5     0.142    -0.3283     0.111      0.01334                  NDM                  -1.382E-02
+       28.0     0.156    -0.3635     0.130      0.02010                  NDM                  -1.429E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.33E-02  1.18E-02  6.57E-03  2.52E-03 -3.52E-06 -9.35E-04  1.06E-03  1.52E-03  2.45E-03
+    -6.0        1.21E-02  1.07E-02  5.81E-03  2.15E-03 -2.77E-06 -3.67E-04  2.12E-03  2.65E-03  3.70E-03
+    -4.0        1.09E-02  9.56E-03  5.04E-03  1.76E-03 -2.00E-06  2.12E-04  3.21E-03  3.81E-03  4.97E-03
+    -2.0        9.55E-03  8.34E-03  4.22E-03  1.35E-03 -1.17E-06  8.29E-04  4.37E-03  5.04E-03  6.33E-03
+     0.0        8.22E-03  7.11E-03  3.38E-03  9.31E-04 -3.38E-07  1.46E-03  5.54E-03  6.29E-03  7.71E-03
+     2.0        6.90E-03  5.89E-03  2.55E-03  5.16E-04  4.92E-07  2.08E-03  6.71E-03  7.53E-03  9.07E-03
+     4.0        5.60E-03  4.68E-03  1.74E-03  1.07E-04  1.31E-06  2.69E-03  7.86E-03  8.75E-03  1.04E-02
+     6.0        4.30E-03  3.47E-03  9.15E-04 -3.03E-04  2.13E-06  3.31E-03  9.02E-03  9.98E-03  1.18E-02
+     8.0        2.96E-03  2.23E-03  7.37E-05 -7.24E-04  2.97E-06  3.94E-03  1.02E-02  1.12E-02  1.32E-02
+    10.0        1.57E-03  9.38E-04 -8.06E-04 -1.16E-03  3.85E-06  4.60E-03  1.14E-02  1.25E-02  1.46E-02
+    12.0        6.84E-05 -4.51E-04 -1.75E-03 -1.63E-03  4.79E-06  5.30E-03  1.28E-02  1.40E-02  1.62E-02
+    14.0       -1.64E-03 -2.03E-03 -2.82E-03 -2.17E-03  5.87E-06  6.11E-03  1.43E-02  1.56E-02  1.79E-02
+    16.0       -3.60E-03 -3.86E-03 -4.06E-03 -2.79E-03  7.10E-06  7.04E-03  1.60E-02  1.74E-02  2.00E-02
+    18.0       -5.74E-03 -5.84E-03 -5.41E-03 -3.46E-03  8.45E-06  8.05E-03  1.79E-02  1.94E-02  2.22E-02
+    20.0       -8.11E-03 -8.04E-03 -6.90E-03 -4.21E-03  9.94E-06  9.16E-03  2.00E-02  2.17E-02  2.46E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100     500.00      33.83   9.5461E+04     284.900     2.2167E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.036   -0.620    0.1096  -0.619   -0.051   -0.177    5.971E+00   -7.610E-02   -2.944E-01    2.492E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0938  -0.418   -0.017   -0.224    5.664E+00   -4.468E-01                             -1.916E-01
+   -4.0    0.021   -0.225    0.0784  -0.226    0.006   -0.347    5.453E+00   -6.658E-01                             -1.976E-01
+   -2.0    0.019   -0.037    0.0473  -0.038    0.018   -1.246    5.355E+00   -9.108E-01                             -2.031E-01
+    0.0    0.020    0.149    0.0148   0.149    0.020    0.099    5.464E+00   -9.756E-01                             -2.085E-01
+    2.0    0.024    0.344   -0.0208   0.345    0.012   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.032    0.548   -0.0600   0.549   -0.006   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1036   0.759   -0.035   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.061    0.976   -0.1558   0.975   -0.075   -0.160    6.296E+00   -1.595E+00                             -2.335E-01
+   10.0    0.082    1.198   -0.2150   1.194   -0.127   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.107    1.415   -0.2851   1.407   -0.189   -0.203    5.629E+00   -2.178E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3671   1.575   -0.259   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.151    1.738   -0.4623   1.712   -0.334   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.170    1.850   -0.5658   1.812   -0.410   -0.312    2.625E+00   -3.084E+00                             -2.578E-01
+   20.0    0.183    1.921     NA      1.868   -0.485    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.910     -3.070        0.539
+                                     -6.0      0.936     -1.992        0.534
+                                     -4.0      0.996     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100     500.00      33.83   9.5461E+04     284.900     2.2167E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.505E+00   -1.520E+01     2.764E+00   -8.205E+00   -5.265E-01   -3.840E-02    3.552E-02   -4.828E-02   -9.856E-02
+    -6.00                               2.817E+00   -8.361E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.717E-02   -6.299E-02
+    -4.00                               2.884E+00   -8.559E+00   -4.789E-01   -4.308E-02    1.217E-02   -4.692E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.742E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.858E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.058E-01   -4.904E-02   -2.263E-02   -5.050E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.329E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.413E-01   -5.385E-02   -4.660E-02   -5.704E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.522E-01   -5.647E-02   -5.895E-02   -6.179E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.262E-02   -6.756E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.687E-01   -6.266E-02   -9.168E-02   -7.399E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.935E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.381E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.685E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.227E-02   -6.605E-02   -1.540E-01   -8.782E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100     500.00      33.83   4.1640E+01     923.077     2.0593E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.150     0.3477     0.123      0.01734                  NDM      -6.379E-03  -1.417E-02
+      -20.0    -0.139     0.3215     0.102      0.01073                  NDM                  -1.338E-02
+      -10.0    -0.095     0.2157     0.059      0.00387                  NDM                  -1.173E-02
+       -5.0    -0.048     0.1078     0.030      0.00189                  NDM                  -1.173E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.173E-02
+        7.5     0.071    -0.1618     0.045      0.00287                  NDM                  -1.173E-02
+       15.0     0.133    -0.3038     0.082      0.00700                  NDM                  -1.212E-02
+       22.5     0.141    -0.3274     0.111      0.01334                  NDM                  -1.384E-02
+       28.0     0.156    -0.3625     0.130      0.02010                  NDM                  -1.431E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.33E-02  1.18E-02  6.56E-03  2.52E-03 -3.52E-06 -9.36E-04  1.05E-03  1.51E-03  2.43E-03
+    -6.0        1.21E-02  1.07E-02  5.80E-03  2.14E-03 -2.76E-06 -3.69E-04  2.11E-03  2.64E-03  3.68E-03
+    -4.0        1.08E-02  9.53E-03  5.03E-03  1.76E-03 -1.99E-06  2.09E-04  3.20E-03  3.79E-03  4.95E-03
+    -2.0        9.52E-03  8.32E-03  4.21E-03  1.35E-03 -1.17E-06  8.25E-04  4.35E-03  5.02E-03  6.31E-03
+     0.0        8.19E-03  7.09E-03  3.37E-03  9.28E-04 -3.37E-07  1.45E-03  5.53E-03  6.27E-03  7.68E-03
+     2.0        6.88E-03  5.87E-03  2.54E-03  5.14E-04  4.91E-07  2.07E-03  6.69E-03  7.51E-03  9.05E-03
+     4.0        5.58E-03  4.67E-03  1.73E-03  1.06E-04  1.31E-06  2.68E-03  7.84E-03  8.73E-03  1.04E-02
+     6.0        4.28E-03  3.46E-03  9.09E-04 -3.04E-04  2.13E-06  3.30E-03  8.99E-03  9.95E-03  1.17E-02
+     8.0        2.95E-03  2.22E-03  6.89E-05 -7.24E-04  2.97E-06  3.93E-03  1.02E-02  1.12E-02  1.31E-02
+    10.0        1.55E-03  9.26E-04 -8.09E-04 -1.16E-03  3.84E-06  4.59E-03  1.14E-02  1.25E-02  1.46E-02
+    12.0        5.65E-05 -4.60E-04 -1.75E-03 -1.63E-03  4.78E-06  5.29E-03  1.27E-02  1.39E-02  1.61E-02
+    14.0       -1.65E-03 -2.04E-03 -2.82E-03 -2.17E-03  5.86E-06  6.10E-03  1.42E-02  1.55E-02  1.79E-02
+    16.0       -3.61E-03 -3.86E-03 -4.06E-03 -2.79E-03  7.09E-06  7.02E-03  1.60E-02  1.74E-02  1.99E-02
+    18.0       -5.75E-03 -5.84E-03 -5.40E-03 -3.46E-03  8.44E-06  8.03E-03  1.79E-02  1.94E-02  2.21E-02
+    20.0       -8.11E-03 -8.04E-03 -6.89E-03 -4.20E-03  9.93E-06  9.15E-03  2.00E-02  2.16E-02  2.46E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1000.00      33.64   8.9876E+04     281.651     2.1178E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.036   -0.620    0.1095  -0.619   -0.050   -0.177    5.970E+00   -7.562E-02   -2.944E-01    2.510E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0937  -0.418   -0.017   -0.224    5.664E+00   -4.461E-01                             -1.916E-01
+   -4.0    0.021   -0.225    0.0784  -0.226    0.006   -0.347    5.452E+00   -6.647E-01                             -1.976E-01
+   -2.0    0.019   -0.037    0.0473  -0.038    0.018   -1.247    5.355E+00   -9.105E-01                             -2.031E-01
+    0.0    0.020    0.149    0.0148   0.149    0.020    0.099    5.464E+00   -9.757E-01                             -2.085E-01
+    2.0    0.024    0.344   -0.0208   0.345    0.012   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.033    0.548   -0.0599   0.549   -0.006   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1036   0.759   -0.035   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.062    0.976   -0.1558   0.975   -0.075   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.083    1.198   -0.2150   1.194   -0.127   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.107    1.415   -0.2850   1.407   -0.189   -0.203    5.629E+00   -2.178E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3671   1.575   -0.259   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.151    1.738   -0.4623   1.712   -0.334   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.170    1.850   -0.5658   1.812   -0.410   -0.312    2.625E+00   -3.084E+00                             -2.578E-01
+   20.0    0.184    1.921     NA      1.868   -0.485    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.910     -3.070        0.539
+                                     -6.0      0.936     -1.992        0.534
+                                     -4.0      0.996     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1000.00      33.64   8.9876E+04     281.651     2.1178E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.503E+00   -1.519E+01     2.763E+00   -8.201E+00   -5.265E-01   -3.840E-02    3.552E-02   -4.829E-02   -9.856E-02
+    -6.00                               2.816E+00   -8.357E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.718E-02   -6.299E-02
+    -4.00                               2.883E+00   -8.557E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.694E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.744E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.860E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.058E-01   -4.904E-02   -2.263E-02   -5.052E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.331E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.413E-01   -5.385E-02   -4.660E-02   -5.706E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.522E-01   -5.647E-02   -5.895E-02   -6.181E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.758E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.687E-01   -6.266E-02   -9.168E-02   -7.401E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.936E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.383E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.687E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.228E-02   -6.605E-02   -1.540E-01   -8.784E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1000.00      33.64   3.9204E+01     912.549     1.9675E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.150     0.3466     0.123      0.01734                  NDM      -6.382E-03  -1.419E-02
+      -20.0    -0.139     0.3205     0.102      0.01073                  NDM                  -1.340E-02
+      -10.0    -0.095     0.2150     0.059      0.00387                  NDM                  -1.176E-02
+       -5.0    -0.048     0.1075     0.030      0.00189                  NDM                  -1.176E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.176E-02
+        7.5     0.071    -0.1612     0.045      0.00287                  NDM                  -1.176E-02
+       15.0     0.133    -0.3028     0.082      0.00700                  NDM                  -1.215E-02
+       22.5     0.141    -0.3263     0.111      0.01334                  NDM                  -1.386E-02
+       28.0     0.156    -0.3614     0.130      0.02010                  NDM                  -1.433E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.32E-02  1.18E-02  6.54E-03  2.51E-03 -3.51E-06 -9.37E-04  1.04E-03  1.50E-03  2.42E-03
+    -6.0        1.20E-02  1.06E-02  5.79E-03  2.14E-03 -2.76E-06 -3.71E-04  2.10E-03  2.63E-03  3.66E-03
+    -4.0        1.08E-02  9.50E-03  5.02E-03  1.75E-03 -1.99E-06  2.06E-04  3.18E-03  3.78E-03  4.93E-03
+    -2.0        9.49E-03  8.30E-03  4.20E-03  1.34E-03 -1.17E-06  8.21E-04  4.34E-03  5.00E-03  6.28E-03
+     0.0        8.17E-03  7.07E-03  3.36E-03  9.26E-04 -3.36E-07  1.45E-03  5.51E-03  6.25E-03  7.66E-03
+     2.0        6.86E-03  5.85E-03  2.54E-03  5.12E-04  4.91E-07  2.07E-03  6.67E-03  7.48E-03  9.02E-03
+     4.0        5.56E-03  4.65E-03  1.72E-03  1.04E-04  1.31E-06  2.68E-03  7.82E-03  8.70E-03  1.04E-02
+     6.0        4.26E-03  3.44E-03  9.02E-04 -3.05E-04  2.12E-06  3.29E-03  8.97E-03  9.92E-03  1.17E-02
+     8.0        2.93E-03  2.21E-03  6.41E-05 -7.24E-04  2.96E-06  3.92E-03  1.01E-02  1.12E-02  1.31E-02
+    10.0        1.54E-03  9.14E-04 -8.12E-04 -1.16E-03  3.84E-06  4.58E-03  1.14E-02  1.25E-02  1.45E-02
+    12.0        4.45E-05 -4.70E-04 -1.75E-03 -1.63E-03  4.78E-06  5.28E-03  1.27E-02  1.39E-02  1.61E-02
+    14.0       -1.66E-03 -2.05E-03 -2.82E-03 -2.17E-03  5.85E-06  6.08E-03  1.42E-02  1.55E-02  1.78E-02
+    16.0       -3.62E-03 -3.87E-03 -4.06E-03 -2.78E-03  7.08E-06  7.01E-03  1.59E-02  1.73E-02  1.99E-02
+    18.0       -5.75E-03 -5.84E-03 -5.40E-03 -3.45E-03  8.42E-06  8.02E-03  1.78E-02  1.93E-02  2.21E-02
+    20.0       -8.11E-03 -8.03E-03 -6.88E-03 -4.20E-03  9.91E-06  9.13E-03  1.99E-02  2.16E-02  2.45E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1500.00      33.45   8.4560E+04     278.402     2.0224E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.036   -0.620    0.1095  -0.619   -0.050   -0.177    5.970E+00   -7.512E-02   -2.944E-01    2.528E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0937  -0.418   -0.017   -0.224    5.664E+00   -4.454E-01                             -1.916E-01
+   -4.0    0.022   -0.225    0.0784  -0.226    0.006   -0.347    5.452E+00   -6.637E-01                             -1.976E-01
+   -2.0    0.019   -0.037    0.0474  -0.038    0.018   -1.248    5.355E+00   -9.101E-01                             -2.031E-01
+    0.0    0.020    0.149    0.0149   0.149    0.020    0.100    5.464E+00   -9.757E-01                             -2.085E-01
+    2.0    0.024    0.344   -0.0207   0.345    0.012   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.033    0.548   -0.0599   0.549   -0.006   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1036   0.759   -0.035   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.062    0.976   -0.1558   0.975   -0.075   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.083    1.198   -0.2149   1.194   -0.127   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.107    1.415   -0.2850   1.407   -0.189   -0.203    5.628E+00   -2.178E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3670   1.575   -0.259   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.151    1.738   -0.4623   1.712   -0.333   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.170    1.850   -0.5658   1.812   -0.410   -0.312    2.625E+00   -3.085E+00                             -2.578E-01
+   20.0    0.184    1.921     NA      1.868   -0.484    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.910     -3.070        0.539
+                                     -6.0      0.935     -1.992        0.534
+                                     -4.0      0.996     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1500.00      33.45   8.4560E+04     278.402     2.0224E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.501E+00   -1.519E+01     2.762E+00   -8.198E+00   -5.265E-01   -3.840E-02    3.552E-02   -4.831E-02   -9.856E-02
+    -6.00                               2.814E+00   -8.353E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.720E-02   -6.299E-02
+    -4.00                               2.882E+00   -8.555E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.695E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.745E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.862E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.058E-01   -4.904E-02   -2.263E-02   -5.054E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.333E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.414E-01   -5.385E-02   -4.660E-02   -5.707E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.523E-01   -5.647E-02   -5.895E-02   -6.182E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.759E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.688E-01   -6.266E-02   -9.168E-02   -7.403E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.938E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.385E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.689E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.228E-02   -6.605E-02   -1.540E-01   -8.786E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    1500.00      33.45   3.6885E+01     902.023     1.8789E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.150     0.3403     0.123      0.01734                  NDM      -6.385E-03  -1.421E-02
+      -20.0    -0.139     0.3147     0.102      0.01073                  NDM                  -1.342E-02
+      -10.0    -0.095     0.2110     0.059      0.00387                  NDM                  -1.178E-02
+       -5.0    -0.047     0.1055     0.030      0.00189                  NDM                  -1.178E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.178E-02
+        7.5     0.071    -0.1583     0.045      0.00287                  NDM                  -1.178E-02
+       15.0     0.133    -0.2972     0.082      0.00700                  NDM                  -1.217E-02
+       22.5     0.141    -0.3204     0.111      0.01334                  NDM                  -1.388E-02
+       28.0     0.155    -0.3548     0.130      0.02010                  NDM                  -1.435E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.32E-02  1.17E-02  6.52E-03  2.51E-03 -3.51E-06 -9.38E-04  1.03E-03  1.48E-03  2.40E-03
+    -6.0        1.20E-02  1.06E-02  5.77E-03  2.13E-03 -2.75E-06 -3.73E-04  2.09E-03  2.61E-03  3.64E-03
+    -4.0        1.08E-02  9.48E-03  5.00E-03  1.75E-03 -1.99E-06  2.03E-04  3.17E-03  3.76E-03  4.91E-03
+    -2.0        9.46E-03  8.27E-03  4.18E-03  1.34E-03 -1.17E-06  8.17E-04  4.32E-03  4.98E-03  6.26E-03
+     0.0        8.14E-03  7.05E-03  3.35E-03  9.23E-04 -3.36E-07  1.44E-03  5.49E-03  6.23E-03  7.63E-03
+     2.0        6.83E-03  5.83E-03  2.53E-03  5.10E-04  4.90E-07  2.06E-03  6.65E-03  7.46E-03  8.99E-03
+     4.0        5.54E-03  4.63E-03  1.71E-03  1.03E-04  1.30E-06  2.67E-03  7.80E-03  8.68E-03  1.03E-02
+     6.0        4.24E-03  3.43E-03  8.96E-04 -3.05E-04  2.12E-06  3.28E-03  8.94E-03  9.90E-03  1.17E-02
+     8.0        2.91E-03  2.19E-03  5.92E-05 -7.24E-04  2.96E-06  3.91E-03  1.01E-02  1.11E-02  1.31E-02
+    10.0        1.52E-03  9.02E-04 -8.16E-04 -1.16E-03  3.83E-06  4.57E-03  1.14E-02  1.25E-02  1.45E-02
+    12.0        3.24E-05 -4.80E-04 -1.75E-03 -1.63E-03  4.77E-06  5.27E-03  1.27E-02  1.39E-02  1.60E-02
+    14.0       -1.66E-03 -2.05E-03 -2.82E-03 -2.16E-03  5.84E-06  6.07E-03  1.42E-02  1.55E-02  1.78E-02
+    16.0       -3.62E-03 -3.87E-03 -4.05E-03 -2.78E-03  7.07E-06  7.00E-03  1.59E-02  1.73E-02  1.98E-02
+    18.0       -5.75E-03 -5.84E-03 -5.39E-03 -3.45E-03  8.41E-06  8.00E-03  1.78E-02  1.93E-02  2.20E-02
+    20.0       -8.11E-03 -8.03E-03 -6.88E-03 -4.19E-03  9.90E-06  9.11E-03  1.99E-02  2.15E-02  2.45E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2000.00      33.25   7.9501E+04     275.154     1.9303E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.037   -0.620    0.1095  -0.619   -0.050   -0.177    5.970E+00   -7.462E-02   -2.944E-01    2.547E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0937  -0.418   -0.017   -0.224    5.663E+00   -4.447E-01                             -1.916E-01
+   -4.0    0.022   -0.225    0.0784  -0.226    0.006   -0.347    5.451E+00   -6.626E-01                             -1.976E-01
+   -2.0    0.019   -0.037    0.0474  -0.038    0.018   -1.248    5.354E+00   -9.097E-01                             -2.031E-01
+    0.0    0.020    0.149    0.0149   0.149    0.020    0.100    5.464E+00   -9.758E-01                             -2.085E-01
+    2.0    0.025    0.344   -0.0207   0.345    0.013   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.033    0.548   -0.0599   0.549   -0.005   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1035   0.759   -0.034   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.062    0.976   -0.1557   0.975   -0.075   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.083    1.198   -0.2149   1.194   -0.126   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.108    1.415   -0.2850   1.407   -0.189   -0.203    5.628E+00   -2.178E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3670   1.575   -0.259   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.152    1.738   -0.4622   1.712   -0.333   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.170    1.850   -0.5658   1.812   -0.410   -0.312    2.625E+00   -3.085E+00                             -2.578E-01
+   20.0    0.184    1.921     NA      1.868   -0.484    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.909     -3.070        0.539
+                                     -6.0      0.935     -1.992        0.534
+                                     -4.0      0.995     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2000.00      33.25   7.9501E+04     275.154     1.9303E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.499E+00   -1.518E+01     2.761E+00   -8.195E+00   -5.266E-01   -3.840E-02    3.552E-02   -4.833E-02   -9.856E-02
+    -6.00                               2.813E+00   -8.349E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.722E-02   -6.299E-02
+    -4.00                               2.882E+00   -8.553E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.697E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.747E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.864E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.058E-01   -4.904E-02   -2.263E-02   -5.056E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.335E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.414E-01   -5.385E-02   -4.660E-02   -5.709E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.523E-01   -5.647E-02   -5.895E-02   -6.184E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.761E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.688E-01   -6.266E-02   -9.168E-02   -7.405E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.940E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.387E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.690E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.229E-02   -6.605E-02   -1.540E-01   -8.788E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2000.00      33.25   3.4679E+01     891.499     1.7934E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.150     0.3332     0.123      0.01734                  NDM      -6.389E-03  -1.423E-02
+      -20.0    -0.139     0.3081     0.102      0.01073                  NDM                  -1.345E-02
+      -10.0    -0.095     0.2065     0.059      0.00387                  NDM                  -1.180E-02
+       -5.0    -0.047     0.1033     0.030      0.00189                  NDM                  -1.180E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.180E-02
+        7.5     0.071    -0.1549     0.045      0.00287                  NDM                  -1.180E-02
+       15.0     0.133    -0.2909     0.082      0.00700                  NDM                  -1.219E-02
+       22.5     0.141    -0.3137     0.111      0.01334                  NDM                  -1.390E-02
+       28.0     0.155    -0.3474     0.130      0.02010                  NDM                  -1.437E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.31E-02  1.17E-02  6.51E-03  2.50E-03 -3.50E-06 -9.39E-04  1.01E-03  1.47E-03  2.38E-03
+    -6.0        1.20E-02  1.06E-02  5.76E-03  2.13E-03 -2.75E-06 -3.76E-04  2.07E-03  2.60E-03  3.62E-03
+    -4.0        1.07E-02  9.45E-03  4.99E-03  1.74E-03 -1.98E-06  2.00E-04  3.15E-03  3.74E-03  4.89E-03
+    -2.0        9.44E-03  8.25E-03  4.17E-03  1.34E-03 -1.17E-06  8.13E-04  4.30E-03  4.96E-03  6.24E-03
+     0.0        8.12E-03  7.02E-03  3.34E-03  9.20E-04 -3.35E-07  1.44E-03  5.47E-03  6.21E-03  7.60E-03
+     2.0        6.81E-03  5.81E-03  2.52E-03  5.08E-04  4.89E-07  2.05E-03  6.63E-03  7.44E-03  8.96E-03
+     4.0        5.52E-03  4.61E-03  1.71E-03  1.02E-04  1.30E-06  2.66E-03  7.77E-03  8.65E-03  1.03E-02
+     6.0        4.22E-03  3.41E-03  8.90E-04 -3.06E-04  2.12E-06  3.27E-03  8.92E-03  9.87E-03  1.16E-02
+     8.0        2.89E-03  2.18E-03  5.43E-05 -7.24E-04  2.95E-06  3.90E-03  1.01E-02  1.11E-02  1.30E-02
+    10.0        1.51E-03  8.90E-04 -8.19E-04 -1.16E-03  3.83E-06  4.56E-03  1.13E-02  1.24E-02  1.45E-02
+    12.0        2.02E-05 -4.89E-04 -1.76E-03 -1.63E-03  4.76E-06  5.26E-03  1.26E-02  1.38E-02  1.60E-02
+    14.0       -1.67E-03 -2.06E-03 -2.82E-03 -2.16E-03  5.83E-06  6.06E-03  1.41E-02  1.54E-02  1.78E-02
+    16.0       -3.63E-03 -3.87E-03 -4.05E-03 -2.78E-03  7.06E-06  6.98E-03  1.59E-02  1.73E-02  1.98E-02
+    18.0       -5.75E-03 -5.85E-03 -5.39E-03 -3.45E-03  8.40E-06  7.98E-03  1.78E-02  1.93E-02  2.20E-02
+    20.0       -8.10E-03 -8.03E-03 -6.87E-03 -4.19E-03  9.88E-06  9.09E-03  1.98E-02  2.15E-02  2.44E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2500.00      33.05   7.4692E+04     271.906     1.8415E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.037   -0.620    0.1094  -0.619   -0.050   -0.177    5.970E+00   -7.411E-02   -2.944E-01    2.565E-02   -1.853E-01
+   -6.0    0.027   -0.418    0.0936  -0.418   -0.016   -0.224    5.663E+00   -4.440E-01                             -1.916E-01
+   -4.0    0.022   -0.225    0.0784  -0.226    0.006   -0.348    5.451E+00   -6.615E-01                             -1.976E-01
+   -2.0    0.020   -0.037    0.0475  -0.038    0.018   -1.249    5.354E+00   -9.093E-01                             -2.031E-01
+    0.0    0.021    0.149    0.0149   0.149    0.021    0.100    5.464E+00   -9.758E-01                             -2.085E-01
+    2.0    0.025    0.344   -0.0207   0.345    0.013   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.033    0.548   -0.0598   0.549   -0.005   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1035   0.759   -0.034   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.062    0.976   -0.1557   0.976   -0.074   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.083    1.198   -0.2149   1.195   -0.126   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.108    1.415   -0.2849   1.407   -0.189   -0.203    5.628E+00   -2.179E+00                             -2.470E-01
+   14.0    0.130    1.591   -0.3670   1.576   -0.258   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.152    1.738   -0.4622   1.712   -0.333   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.170    1.850   -0.5657   1.813   -0.410   -0.312    2.625E+00   -3.085E+00                             -2.578E-01
+   20.0    0.184    1.921     NA      1.868   -0.484    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.909     -3.070        0.539
+                                     -6.0      0.934     -1.992        0.534
+                                     -4.0      0.995     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2500.00      33.05   7.4692E+04     271.906     1.8415E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.496E+00   -1.517E+01     2.760E+00   -8.191E+00   -5.266E-01   -3.840E-02    3.552E-02   -4.835E-02   -9.856E-02
+    -6.00                               2.811E+00   -8.345E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.724E-02   -6.299E-02
+    -4.00                               2.881E+00   -8.551E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.699E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.749E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.866E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.059E-01   -4.904E-02   -2.263E-02   -5.058E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.337E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.414E-01   -5.385E-02   -4.660E-02   -5.711E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.523E-01   -5.647E-02   -5.895E-02   -6.186E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.763E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.688E-01   -6.266E-02   -9.168E-02   -7.407E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.942E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.389E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.692E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.230E-02   -6.605E-02   -1.540E-01   -8.789E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    2500.00      33.05   3.2581E+01     880.976     1.7108E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.149     0.3209     0.123      0.01734                  NDM      -6.392E-03  -1.425E-02
+      -20.0    -0.138     0.2967     0.102      0.01073                  NDM                  -1.347E-02
+      -10.0    -0.095     0.1988     0.059      0.00387                  NDM                  -1.183E-02
+       -5.0    -0.047     0.0994     0.030      0.00189                  NDM                  -1.183E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.183E-02
+        7.5     0.071    -0.1491     0.045      0.00287                  NDM                  -1.183E-02
+       15.0     0.133    -0.2800     0.082      0.00700                  NDM                  -1.221E-02
+       22.5     0.141    -0.3022     0.111      0.01334                  NDM                  -1.392E-02
+       28.0     0.155    -0.3347     0.130      0.02010                  NDM                  -1.439E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.31E-02  1.17E-02  6.49E-03  2.50E-03 -3.50E-06 -9.40E-04  1.00E-03  1.46E-03  2.37E-03
+    -6.0        1.19E-02  1.06E-02  5.74E-03  2.12E-03 -2.75E-06 -3.78E-04  2.06E-03  2.58E-03  3.60E-03
+    -4.0        1.07E-02  9.43E-03  4.98E-03  1.74E-03 -1.98E-06  1.97E-04  3.14E-03  3.73E-03  4.87E-03
+    -2.0        9.41E-03  8.22E-03  4.16E-03  1.33E-03 -1.16E-06  8.09E-04  4.28E-03  4.94E-03  6.21E-03
+     0.0        8.09E-03  7.00E-03  3.33E-03  9.17E-04 -3.35E-07  1.43E-03  5.45E-03  6.18E-03  7.58E-03
+     2.0        6.78E-03  5.79E-03  2.51E-03  5.06E-04  4.88E-07  2.05E-03  6.61E-03  7.41E-03  8.93E-03
+     4.0        5.50E-03  4.59E-03  1.70E-03  1.00E-04  1.30E-06  2.66E-03  7.75E-03  8.63E-03  1.03E-02
+     6.0        4.20E-03  3.39E-03  8.84E-04 -3.07E-04  2.11E-06  3.27E-03  8.90E-03  9.84E-03  1.16E-02
+     8.0        2.88E-03  2.16E-03  4.94E-05 -7.24E-04  2.95E-06  3.89E-03  1.01E-02  1.11E-02  1.30E-02
+    10.0        1.49E-03  8.78E-04 -8.23E-04 -1.16E-03  3.82E-06  4.55E-03  1.13E-02  1.24E-02  1.44E-02
+    12.0        7.94E-06 -4.99E-04 -1.76E-03 -1.63E-03  4.75E-06  5.25E-03  1.26E-02  1.38E-02  1.60E-02
+    14.0       -1.68E-03 -2.07E-03 -2.82E-03 -2.16E-03  5.82E-06  6.05E-03  1.41E-02  1.54E-02  1.77E-02
+    16.0       -3.63E-03 -3.88E-03 -4.05E-03 -2.77E-03  7.05E-06  6.97E-03  1.58E-02  1.72E-02  1.97E-02
+    18.0       -5.76E-03 -5.85E-03 -5.38E-03 -3.44E-03  8.38E-06  7.97E-03  1.77E-02  1.92E-02  2.19E-02
+    20.0       -8.10E-03 -8.02E-03 -6.86E-03 -4.18E-03  9.86E-06  9.08E-03  1.98E-02  2.14E-02  2.44E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3000.00      32.85   7.0121E+04     268.659     1.7558E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.037   -0.620    0.1094  -0.619   -0.050   -0.177    5.970E+00   -7.359E-02   -2.944E-01    2.584E-02   -1.853E-01
+   -6.0    0.028   -0.418    0.0936  -0.418   -0.016   -0.224    5.663E+00   -4.433E-01                             -1.916E-01
+   -4.0    0.022   -0.225    0.0784  -0.226    0.006   -0.348    5.451E+00   -6.604E-01                             -1.976E-01
+   -2.0    0.020   -0.037    0.0475  -0.038    0.019   -1.250    5.354E+00   -9.089E-01                             -2.031E-01
+    0.0    0.021    0.149    0.0150   0.149    0.021    0.100    5.464E+00   -9.759E-01                             -2.085E-01
+    2.0    0.025    0.344   -0.0206   0.345    0.013   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.033    0.548   -0.0598   0.549   -0.005   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.045    0.759   -0.1035   0.759   -0.034   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.062    0.976   -0.1557   0.976   -0.074   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.083    1.198   -0.2149   1.195   -0.126   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.108    1.415   -0.2849   1.407   -0.189   -0.203    5.628E+00   -2.179E+00                             -2.470E-01
+   14.0    0.131    1.591   -0.3669   1.576   -0.258   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.152    1.738   -0.4622   1.712   -0.333   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.171    1.850   -0.5657   1.813   -0.410   -0.312    2.625E+00   -3.085E+00                             -2.578E-01
+   20.0    0.184    1.921     NA      1.868   -0.484    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.909     -3.070        0.539
+                                     -6.0      0.934     -1.992        0.534
+                                     -4.0      0.995     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3000.00      32.85   7.0121E+04     268.659     1.7558E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.494E+00   -1.517E+01     2.758E+00   -8.187E+00   -5.266E-01   -3.840E-02    3.552E-02   -4.837E-02   -9.856E-02
+    -6.00                               2.810E+00   -8.341E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.726E-02   -6.299E-02
+    -4.00                               2.880E+00   -8.549E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.701E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.751E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.867E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.059E-01   -4.904E-02   -2.263E-02   -5.060E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.339E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.414E-01   -5.385E-02   -4.660E-02   -5.713E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.523E-01   -5.647E-02   -5.895E-02   -6.188E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.765E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.688E-01   -6.266E-02   -9.168E-02   -7.409E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.944E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.391E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.694E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.231E-02   -6.605E-02   -1.540E-01   -8.791E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3000.00      32.85   3.0587E+01     870.455     1.6312E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.149     0.3043     0.123      0.01734                  NDM      -6.396E-03  -1.427E-02
+      -20.0    -0.138     0.2813     0.102      0.01073                  NDM                  -1.349E-02
+      -10.0    -0.094     0.1883     0.059      0.00387                  NDM                  -1.185E-02
+       -5.0    -0.047     0.0942     0.030      0.00189                  NDM                  -1.185E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.185E-02
+        7.5     0.071    -0.1413     0.045      0.00287                  NDM                  -1.185E-02
+       15.0     0.132    -0.2653     0.082      0.00700                  NDM                  -1.223E-02
+       22.5     0.140    -0.2866     0.111      0.01334                  NDM                  -1.394E-02
+       28.0     0.155    -0.3175     0.130      0.02009                  NDM                  -1.441E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.31E-02  1.16E-02  6.48E-03  2.49E-03 -3.49E-06 -9.42E-04  9.92E-04  1.44E-03  2.35E-03
+    -6.0        1.19E-02  1.05E-02  5.73E-03  2.12E-03 -2.74E-06 -3.80E-04  2.05E-03  2.56E-03  3.58E-03
+    -4.0        1.07E-02  9.40E-03  4.96E-03  1.74E-03 -1.98E-06  1.94E-04  3.12E-03  3.71E-03  4.84E-03
+    -2.0        9.38E-03  8.20E-03  4.15E-03  1.33E-03 -1.16E-06  8.05E-04  4.27E-03  4.93E-03  6.19E-03
+     0.0        8.07E-03  6.98E-03  3.32E-03  9.15E-04 -3.34E-07  1.43E-03  5.43E-03  6.16E-03  7.55E-03
+     2.0        6.76E-03  5.77E-03  2.50E-03  5.04E-04  4.87E-07  2.04E-03  6.59E-03  7.39E-03  8.91E-03
+     4.0        5.47E-03  4.57E-03  1.69E-03  9.89E-05  1.30E-06  2.65E-03  7.73E-03  8.60E-03  1.02E-02
+     6.0        4.18E-03  3.38E-03  8.77E-04 -3.07E-04  2.11E-06  3.26E-03  8.87E-03  9.81E-03  1.16E-02
+     8.0        2.86E-03  2.15E-03  4.44E-05 -7.24E-04  2.94E-06  3.88E-03  1.00E-02  1.11E-02  1.30E-02
+    10.0        1.48E-03  8.66E-04 -8.26E-04 -1.16E-03  3.81E-06  4.54E-03  1.13E-02  1.24E-02  1.44E-02
+    12.0       -4.41E-06 -5.09E-04 -1.76E-03 -1.63E-03  4.75E-06  5.24E-03  1.26E-02  1.38E-02  1.59E-02
+    14.0       -1.69E-03 -2.08E-03 -2.82E-03 -2.16E-03  5.81E-06  6.03E-03  1.41E-02  1.53E-02  1.77E-02
+    16.0       -3.64E-03 -3.88E-03 -4.05E-03 -2.77E-03  7.04E-06  6.95E-03  1.58E-02  1.72E-02  1.97E-02
+    18.0       -5.76E-03 -5.85E-03 -5.38E-03 -3.44E-03  8.37E-06  7.95E-03  1.77E-02  1.92E-02  2.19E-02
+    20.0       -8.10E-03 -8.02E-03 -6.86E-03 -4.17E-03  9.84E-06  9.06E-03  1.98E-02  2.14E-02  2.43E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS AT ANGLE OF ATTACK AND IN SIDESLIP
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3658.00      32.59   6.4455E+04     264.387     1.6477E+06            16.170      1.500    10.980     2.110     1.260
+0                                                               -------------------DERIVATIVE (PER RADIAN)-------------------
+0 ALPHA     CD       CL       CM       CN       CA       XCP        CLA          CMA          CYB          CNB          CLB
+0
+   -8.0    0.037   -0.620    0.1093  -0.619   -0.049   -0.177    5.969E+00   -7.289E-02   -2.944E-01    2.609E-02   -1.853E-01
+   -6.0    0.028   -0.418    0.0935  -0.418   -0.016   -0.224    5.662E+00   -4.424E-01                             -1.916E-01
+   -4.0    0.022   -0.225    0.0784  -0.226    0.007   -0.348    5.450E+00   -6.589E-01                             -1.976E-01
+   -2.0    0.020   -0.037    0.0475  -0.038    0.019   -1.251    5.354E+00   -9.083E-01                             -2.031E-01
+    0.0    0.021    0.149    0.0150   0.149    0.021    0.101    5.464E+00   -9.759E-01                             -2.085E-01
+    2.0    0.025    0.344   -0.0206   0.345    0.013   -0.060    5.711E+00   -1.071E+00                             -2.143E-01
+    4.0    0.034    0.548   -0.0597   0.549   -0.005   -0.109    5.939E+00   -1.186E+00                             -2.204E-01
+    6.0    0.046    0.759   -0.1034   0.759   -0.034   -0.136    6.139E+00   -1.373E+00                             -2.269E-01
+    8.0    0.063    0.976   -0.1556   0.976   -0.074   -0.160    6.296E+00   -1.596E+00                             -2.335E-01
+   10.0    0.084    1.198   -0.2148   1.195   -0.126   -0.180    6.289E+00   -1.851E+00                             -2.404E-01
+   12.0    0.108    1.415   -0.2849   1.407   -0.188   -0.202    5.628E+00   -2.179E+00                             -2.470E-01
+   14.0    0.131    1.591   -0.3669   1.576   -0.258   -0.233    4.618E+00   -2.539E+00                             -2.520E-01
+   16.0    0.152    1.738   -0.4622   1.712   -0.333   -0.270    3.713E+00   -2.847E+00                             -2.557E-01
+   18.0    0.171    1.850   -0.5657   1.813   -0.409   -0.312    2.625E+00   -3.085E+00                             -2.578E-01
+   20.0    0.185    1.921     NA      1.868   -0.484    NA       1.421E+00      NA                                  -2.581E-01
+0                                    ALPHA     Q/QINF    EPSLON  D(EPSLON)/D(ALPHA)
+0
+                                     -8.0      0.908     -3.070        0.539
+                                     -6.0      0.933     -1.992        0.534
+                                     -4.0      0.994     -0.934        0.514
+                                     -2.0      1.000      0.063        0.495
+                                      0.0      1.000      1.045        0.492
+                                      2.0      1.000      2.033        0.498
+                                      4.0      1.000      3.037        0.501
+                                      6.0      1.000      4.036        0.494
+                                      8.0      1.000      5.011        0.476
+                                     10.0      1.000      5.940        0.445
+                                     12.0      1.000      6.791        0.386
+                                     14.0      1.000      7.483        0.296
+                                     16.0      1.000      7.974        0.213
+                                     18.0      1.000      8.333        0.136
+                                     20.0      1.000      8.517        0.092
+0*** NA PRINTED WHEN METHOD NOT APPLICABLE
+1                               AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                                         DYNAMIC DERIVATIVES
+                                        WING-BODY-VERTICAL TAIL-HORIZONTAL TAIL CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ 
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3658.00      32.59   6.4455E+04     264.387     1.6477E+06            16.170      1.500    10.980     2.110     1.260
+                                                    DYNAMIC DERIVATIVES (PER RADIAN)
+0           -------PITCHING-------    -----ACCELERATION------    --------------ROLLING--------------    --------YAWING--------
+0   ALPHA       CLQ          CMQ           CLAD         CMAD         CLP          CYP          CNP          CNR          CLR
+0
+    -8.00    7.491E+00   -1.516E+01     2.757E+00   -8.183E+00   -5.266E-01   -3.840E-02    3.552E-02   -4.840E-02   -9.856E-02
+    -6.00                               2.808E+00   -8.335E+00   -5.037E-01   -4.088E-02    2.375E-02   -4.728E-02   -6.299E-02
+    -4.00                               2.879E+00   -8.546E+00   -4.790E-01   -4.308E-02    1.217E-02   -4.704E-02   -2.905E-02
+    -2.00                               2.787E+00   -8.271E+00   -4.672E-01   -4.498E-02    6.999E-04   -4.754E-02    2.946E-03
+     0.00                               2.774E+00   -8.234E+00   -4.818E-01   -4.689E-02   -1.087E-02   -4.870E-02    3.517E-02
+     2.00                               2.805E+00   -8.326E+00   -5.059E-01   -4.904E-02   -2.263E-02   -5.062E-02    6.924E-02
+     4.00                               2.821E+00   -8.374E+00   -5.258E-01   -5.136E-02   -3.452E-02   -5.341E-02    1.049E-01
+     6.00                               2.781E+00   -8.254E+00   -5.414E-01   -5.385E-02   -4.660E-02   -5.716E-02    1.417E-01
+     8.00                               2.680E+00   -7.955E+00   -5.523E-01   -5.647E-02   -5.895E-02   -6.191E-02    1.794E-01
+    10.00                               2.507E+00   -7.440E+00   -5.456E-01   -5.932E-02   -7.261E-02   -6.768E-02    2.177E-01
+    12.00                               2.173E+00   -6.450E+00   -4.688E-01   -6.266E-02   -9.168E-02   -7.411E-02    2.542E-01
+    14.00                               1.666E+00   -4.946E+00   -3.611E-01   -6.503E-02   -1.112E-01   -7.947E-02    2.811E-01
+    16.00                               1.198E+00   -3.555E+00   -2.694E-01   -6.656E-02   -1.284E-01   -8.393E-02    3.018E-01
+    18.00                               7.642E-01   -2.268E+00   -1.571E-01   -6.748E-02   -1.447E-01   -8.697E-02    3.153E-01
+    20.00                               5.182E-01   -1.538E+00   -3.232E-02   -6.605E-02   -1.540E-01   -8.794E-02    3.197E-01
+1                            AUTOMATED STABILITY AND CONTROL METHODS PER APRIL 1976 VERSION OF DATCOM
+                                         CHARACTERISTICS OF HIGH LIFT AND CONTROL DEVICES
+                                            TAIL PLAIN TRAILING-EDGE FLAP CONFIGURATION
+                                                 Cessna 172 - Full Aircraft M0.10
+ -----------------------  FLIGHT CONDITIONS  ------------------------           --------------  REFERENCE DIMENSIONS  ------------
+  MACH    ALTITUDE   VELOCITY    PRESSURE    TEMPERATURE     REYNOLDS             REF.      REFERENCE LENGTH   MOMENT REF. CENTER
+ NUMBER                                                       NUMBER              AREA       LONG.     LAT.     HORIZ      VERT
+              M        M/SEC      N/ M**2       DEG K         1/ M                M**2         M         M         M         M
+0 0.100    3658.00      32.59   2.8115E+01     856.612     1.5308E+05            16.170      1.500    10.980     2.110     1.260
+0            ---------INCREMENTS DUE TO DEFLECTION---------              ---DERIVATIVES (PER DEGREE)---
+0     DELTA     D(CL)     D(CM)    D(CL MAX)    D(CD MIN)                (CLA)D     (CH)A       (CH)D
+
+
+      -26.0    -0.149     0.2912     0.123      0.01734                  NDM      -6.400E-03  -1.430E-02
+      -20.0    -0.138     0.2691     0.102      0.01073                  NDM                  -1.352E-02
+      -10.0    -0.094     0.1801     0.059      0.00387                  NDM                  -1.188E-02
+       -5.0    -0.047     0.0900     0.030      0.00189                  NDM                  -1.188E-02
+        0.0     0.000    -0.0002     0.000      0.00000                  NDM                  -1.188E-02
+        7.5     0.071    -0.1351     0.045      0.00287                  NDM                  -1.188E-02
+       15.0     0.132    -0.2537     0.082      0.00700                  NDM                  -1.226E-02
+       22.5     0.140    -0.2742     0.111      0.01334                  NDM                  -1.397E-02
+       28.0     0.154    -0.3039     0.130      0.02009                  NDM                  -1.444E-02
+0  *** NOTE * HINGE MOMENT DERIVATIVES ARE BASED ON TWICE THE AREA-MOMENT OF THE CONTROL ABOUT ITS HINGE LINE
+
+0            --------- INDUCED DRAG COEFFICIENT INCREMENT , D(CDI) , DUE TO DEFLECTION ---------
+0       DELTA = -26.0     -20.0     -10.0      -5.0       0.0       7.5      15.0      22.5      28.0
+   ALPHA
+0
+    -8.0        1.30E-02  1.16E-02  6.46E-03  2.49E-03 -3.48E-06 -9.43E-04  9.77E-04  1.43E-03  2.33E-03
+    -6.0        1.18E-02  1.05E-02  5.71E-03  2.11E-03 -2.73E-06 -3.82E-04  2.03E-03  2.54E-03  3.56E-03
+    -4.0        1.06E-02  9.36E-03  4.95E-03  1.73E-03 -1.97E-06  1.90E-04  3.10E-03  3.69E-03  4.82E-03
+    -2.0        9.34E-03  8.17E-03  4.13E-03  1.32E-03 -1.16E-06  7.99E-04  4.25E-03  4.90E-03  6.16E-03
+     0.0        8.03E-03  6.95E-03  3.31E-03  9.11E-04 -3.34E-07  1.42E-03  5.41E-03  6.13E-03  7.52E-03
+     2.0        6.73E-03  5.74E-03  2.49E-03  5.01E-04  4.86E-07  2.03E-03  6.56E-03  7.36E-03  8.87E-03
+     4.0        5.45E-03  4.55E-03  1.68E-03  9.71E-05  1.29E-06  2.64E-03  7.70E-03  8.57E-03  1.02E-02
+     6.0        4.16E-03  3.36E-03  8.69E-04 -3.08E-04  2.10E-06  3.25E-03  8.84E-03  9.78E-03  1.15E-02
+     8.0        2.84E-03  2.13E-03  3.79E-05 -7.24E-04  2.94E-06  3.87E-03  1.00E-02  1.10E-02  1.29E-02
+    10.0        1.46E-03  8.50E-04 -8.31E-04 -1.16E-03  3.80E-06  4.52E-03  1.12E-02  1.23E-02  1.43E-02
+    12.0       -2.06E-05 -5.22E-04 -1.76E-03 -1.62E-03  4.73E-06  5.22E-03  1.25E-02  1.37E-02  1.59E-02
+    14.0       -1.71E-03 -2.08E-03 -2.82E-03 -2.15E-03  5.79E-06  6.02E-03  1.40E-02  1.53E-02  1.76E-02
+    16.0       -3.65E-03 -3.89E-03 -4.04E-03 -2.76E-03  7.02E-06  6.93E-03  1.58E-02  1.71E-02  1.96E-02
+    18.0       -5.76E-03 -5.85E-03 -5.37E-03 -3.43E-03  8.35E-06  7.93E-03  1.76E-02  1.91E-02  2.18E-02
+    20.0       -8.10E-03 -8.02E-03 -6.85E-03 -4.17E-03  9.82E-06  9.03E-03  1.97E-02  2.13E-02  2.43E-02
+0***NDM PRINTED WHEN NO DATCOM METHODS EXIST
+ Return to main program from M57O71
+1          THE FOLLOWING IS A LIST OF ALL INPUT CARDS FOR THIS CASE.
+0
+1 END OF JOB.

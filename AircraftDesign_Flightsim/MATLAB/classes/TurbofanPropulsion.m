@@ -66,6 +66,15 @@ classdef TurbofanPropulsion < PropulsiveElement
                     M_extra = zeros(3,1);
                 end
 
+                thrust = max(thrust, 0);
+                fuel_flow = max(fuel_flow, 0);
+                if ~isfinite(thrust), thrust = 0; end
+                if ~isfinite(fuel_flow), fuel_flow = 0; end
+
+                [F, M] = obj.assemble_force_moment(thrust, dir_local, M_extra);
+
+                obj.set_operating_status("custom_thrust_model",true,"none", strings(0,1),zeros(0,1),struct('thrust_N',thrust));
+
             else
                 af = exp(-alt / obj.altitude_lapse_height);
 
@@ -73,30 +82,33 @@ classdef TurbofanPropulsion < PropulsiveElement
                 mf = obj.mach_factors;
 
                 if M_inf < mb(1)
-                    mfac = mf(1,1) + mf(1,2) * M_inf;
+                    mfac_raw = mf(1,1) + mf(1,2) * M_inf;
                 elseif M_inf < mb(2)
-                    mfac = mf(2,1) + mf(2,2) * (M_inf - mb(1));
+                    mfac_raw = mf(2,1) + mf(2,2) * (M_inf - mb(1));
                 else
-                    mfac = mf(3,1) + mf(3,2) * (M_inf - mb(2));
+                    mfac_raw = mf(3,1) + mf(3,2) * (M_inf - mb(2));
                 end
 
-                mfac = max(mfac, obj.min_mach_factor);
+                mfac = max(mfac_raw, obj.min_mach_factor);
 
                 thrust = obj.throttle * obj.max_thrust * af * mfac;
-                fuel_flow = obj.throttle * obj.fuel_rate * obj.base_sfc * ...
-                    (1 + obj.sfc_mach_factor * M_inf);
+                fuel_flow = obj.throttle * obj.fuel_rate * obj.base_sfc * (1 + obj.sfc_mach_factor * M_inf);
 
-                dir_local = [];
-                M_extra = zeros(3,1);
+                thrust = max(thrust, 0);
+                fuel_flow = max(fuel_flow, 0);
+                if ~isfinite(thrust), thrust = 0; end
+                if ~isfinite(fuel_flow), fuel_flow = 0; end
+
+                [F, M] = obj.assemble_force_moment(thrust, [], zeros(3,1));
+
+                mach_factor_floor_constraint = (obj.min_mach_factor-mfac_raw)/max(obj.min_mach_factor,eps);
+                floor_active = mach_factor_floor_constraint > 0;
+                limit_state = "none";
+                if floor_active
+                    limit_state = "mach_factor_floor";
+                end
+                obj.set_operating_status("analytic_lapse_model",true,limit_state, "mach_factor_floor",mach_factor_floor_constraint, struct('mfac_raw',mfac_raw,'mfac',mfac));
             end
-
-            thrust = max(thrust, 0);
-            fuel_flow = max(fuel_flow, 0);
-
-            if ~isfinite(thrust), thrust = 0; end
-            if ~isfinite(fuel_flow), fuel_flow = 0; end
-
-            [F, M] = obj.assemble_force_moment(thrust, dir_local, M_extra);
         end
     end
 end

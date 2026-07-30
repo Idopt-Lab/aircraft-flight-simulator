@@ -63,8 +63,7 @@ end
 function Start(block) %#ok<INUSD>
 
 if ~evalin("base", "exist('ac','var')")
-    error("aircraft_sfunc_generalized:NoAircraft", ...
-        "Base workspace variable ac not found. Run setup_f16_simulink_clean first.");
+    error("aircraft_sfunc_generalized:NoAircraft", "Base workspace variable ac not found. Run setup_f16_simulink_clean first.");
 end
 
 ac = evalin("base", "ac");
@@ -100,17 +99,13 @@ n_total = n_cs + n_pe;
 
 t = block.CurrentTime;
 
-if isempty(last_t)
+% Reset persistent memory at the beginning of a new simulation run.
+if isempty(last_t) || t <= 0 || t < last_t
     last_t = t;
+    last_u = [];
 end
 
 dt = t - last_t;
-
-if ~isfinite(dt) || dt <= 0
-    dt = 0.01;
-end
-
-dt = min(max(dt, 1e-4), 0.05);
 last_t = t;
 
 %% Read state
@@ -146,8 +141,7 @@ u_out = u_in;
 %% Saturate controls
 
 for i = 1:n_cs
-    u_out(i) = min(max(u_out(i), ac.control_surfaces(i).min_deflection), ...
-                                  ac.control_surfaces(i).max_deflection);
+    u_out(i) = min(max(u_out(i), ac.control_surfaces(i).min_deflection), ac.control_surfaces(i).max_deflection);
 end
 
 if n_pe > 0
@@ -215,19 +209,15 @@ catch ME
     catch
     end
 
-    error("aircraft_sfunc_generalized:ForceMomentFailure", ...
-        "Failed to compute total loads at t = %.6f s.\n%s", ...
-        t, ME.message);
+    error("aircraft_sfunc_generalized:ForceMomentFailure", "Failed to compute total loads at t = %.6f s.\n%s", t, ME.message);
 end
 
 if isempty(F_body) || numel(F_body) ~= 3
-    error("aircraft_sfunc_generalized:BadForceSize", ...
-        "F_body must be 3x1.");
+    error("aircraft_sfunc_generalized:BadForceSize", "F_body must be 3x1.");
 end
 
 if isempty(M_body) || numel(M_body) ~= 3
-    error("aircraft_sfunc_generalized:BadMomentSize", ...
-        "M_body must be 3x1.");
+    error("aircraft_sfunc_generalized:BadMomentSize", "M_body must be 3x1.");
 end
 
 if isempty(fuel_flow) || ~isfinite(fuel_flow)
@@ -261,9 +251,7 @@ assignin("base", "sfunc_last_cg_body", cg_body);
 altitude = -x(3);
 
 if altitude < -5
-    warning("aircraft_sfunc_generalized:GroundCollision", ...
-        "Ground collision warning at t = %.2f s, altitude = %.1f m", ...
-        t, altitude);
+    warning("aircraft_sfunc_generalized:GroundCollision", "Ground collision warning at t = %.2f s, altitude = %.1f m", t, altitude);
 end
 
 end

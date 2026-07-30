@@ -1,283 +1,179 @@
 classdef StateVector < handle
-% STATEVECTOR  Stores and manages the 12-element aircraft state vector.
-%
-%   The state is ordered as:
-%     x(1:3)   - NED position  [m]          [p_N, p_E, p_D]
-%     x(4:6)   - body velocity [m/s]        [u, v, w]
-%     x(7:9)   - Euler angles  [rad]        [phi, theta, psi]
-%     x(10:12) - body angular rates [rad/s] [p, q, r]
-%
-%   Frame convention:
-%     - NED: North-East-Down inertial frame
-%     - Body: x forward, y right, z down
-%     - Euler: 3-2-1 rotation sequence (yaw-pitch-roll)
-%
-%   Methods for setting individual state components:
-%     set_position, set_velocity, set_attitude, set_angular_rates
-%     set_altitude, set_airspeed, set_heading
-%
-%   Methods for getting individual state components:
-%     get_position, get_velocity, get_attitude, get_angular_rates
-%     get_altitude, get_airspeed, get_heading
-%
-%   See also: Aircraft, StabilityAnalysis, GenericTrimSolver
 
     properties
-        % Full 12x1 state vector [pos(3); vel(3); euler(3); omega(3)]
         x = zeros(12,1)
     end
 
     methods
-
-        % ── Full state access ────────────────────────────────────────────
-
-        function set_full_state(obj, x)
-        % SET_FULL_STATE  Replace the state vector.
-        %
-        %   Coerces the input to a column vector before storing.
-        %
-        %   Input:
-        %     x - 12-element vector (row or column)
-
-            obj.x = x(:);
+        function set_full_state(obj,x)
+            obj.x = StateVector.validate_vector(x,12,'state');
         end
 
         function x = get_full_state(obj)
-        % GET_FULL_STATE  Return the current 12x1 state vector.
-        %
-        %   Output:
-        %     x - 12x1 column vector
-
             x = obj.x;
         end
 
-        % ── Position (NED frame) ─────────────────────────────────────────
-
-        function set_position(obj, pos)
-        % SET_POSITION  Set NED position [p_N, p_E, p_D].
-        %
-        %   Input:
-        %     pos - 3x1 or 1x3 position vector [m]
-
-            obj.x(1:3) = pos(:);
+        function set_position(obj,pos)
+            obj.x(1:3) = StateVector.validate_vector(pos,3,'position');
         end
 
         function pos = get_position(obj)
-        % GET_POSITION  Return NED position [p_N, p_E, p_D].
-        %
-        %   Output:
-        %     pos - 3x1 position vector [m]
-
             pos = obj.x(1:3);
         end
 
-        function set_altitude(obj, alt)
-        % SET_ALTITUDE  Set altitude above ground level.
-        %
-        %   NED convention: z_D is positive down, so altitude = -z_D.
-        %
-        %   Input:
-        %     alt - altitude above ground [m]
-
-            obj.x(3) = -alt;
+        function set_altitude(obj,altitude_m)
+            StateVector.validate_scalar(altitude_m,'altitude');
+            obj.x(3) = -altitude_m;
         end
 
-        function alt = get_altitude(obj)
-        % GET_ALTITUDE  Return altitude above ground level.
-        %
-        %   Output:
-        %     alt - altitude [m]
-
-            alt = -obj.x(3);
+        function altitude_m = get_altitude(obj)
+            altitude_m = -obj.x(3);
         end
 
-        % ── Velocity (body frame) ────────────────────────────────────────
-
-        function set_velocity(obj, vel)
-        % SET_VELOCITY  Set body-axis velocity [u, v, w].
-        %
-        %   Input:
-        %     vel - 3x1 or 1x3 velocity vector [m/s]
-
-            obj.x(4:6) = vel(:);
+        function set_velocity(obj,velocity_body_mps)
+            obj.x(4:6) = StateVector.validate_vector(velocity_body_mps,3,'velocity');
         end
 
-        function vel = get_velocity(obj)
-        % GET_VELOCITY  Return body-axis velocity [u, v, w].
-        %
-        %   Output:
-        %     vel - 3x1 velocity vector [m/s]
-
-            vel = obj.x(4:6);
+        function velocity_body_mps = get_velocity(obj)
+            velocity_body_mps = obj.x(4:6);
         end
 
-        function set_airspeed(obj, V, alpha, beta)
-        % SET_AIRSPEED  Set airspeed and flight path angles.
-        %
-        %   Converts (V, alpha, beta) to body-axis velocity components:
-        %     u = V * cos(alpha) * cos(beta)
-        %     v = V * sin(beta)
-        %     w = V * sin(alpha) * cos(beta)
-        %
-        %   Inputs:
-        %     V     - airspeed [m/s]
-        %     alpha - angle of attack [rad]
-        %     beta  - sideslip angle [rad]
-
-            if nargin < 4, beta = 0; end
-
-            obj.x(4) = V * cos(alpha) * cos(beta);  % u
-            obj.x(5) = V * sin(beta);               % v
-            obj.x(6) = V * sin(alpha) * cos(beta);  % w
-        end
-
-        function V = get_airspeed(obj)
-        % GET_AIRSPEED  Return total airspeed magnitude.
-        %
-        %   Output:
-        %     V - airspeed [m/s]
-
-            V = norm(obj.x(4:6));
-        end
-
-        function alpha = get_alpha(obj)
-        % GET_ALPHA  Return angle of attack.
-        %
-        %   Output:
-        %     alpha - angle of attack [rad]
-
-            u = obj.x(4);
-            w = obj.x(6);
-            alpha = atan2(w, u);
-        end
-
-        function beta = get_beta(obj)
-        % GET_BETA  Return sideslip angle.
-        %
-        %   Output:
-        %     beta - sideslip angle [rad]
-
-            V = norm(obj.x(4:6));
-            if V < 1e-9
+        function set_airspeed(obj,V,alpha,beta,environment)
+            StateVector.validate_scalar(V,'airspeed');
+            StateVector.validate_scalar(alpha,'alpha');
+            if V < 0
+                error('StateVector:InvalidAirspeed', 'Airspeed must be nonnegative.');
+            end
+            if nargin < 4 || isempty(beta)
                 beta = 0;
+            end
+            StateVector.validate_scalar(beta,'beta');
+
+            air_velocity_body = [V*cos(alpha)*cos(beta); V*sin(beta); V*sin(alpha)*cos(beta)];
+
+            if nargin >= 5 && ~isempty(environment)
+                StateVector.validate_environment(environment);
+                wind_body = environment.get_wind_body(obj.x);
             else
-                beta = asin(obj.x(5) / V);
+                wind_body = zeros(3,1);
+            end
+
+            obj.x(4:6) = air_velocity_body+wind_body;
+        end
+
+        function data = get_air_data(obj,environment)
+            if nargin < 2 || isempty(environment)
+                data = FlightEnvironment.standard_air_data(obj.x);
+            else
+                StateVector.validate_environment(environment);
+                data = environment.get_air_data(obj.x);
             end
         end
 
-        % ── Attitude (Euler angles) ──────────────────────────────────────
-
-        function set_attitude(obj, euler)
-        % SET_ATTITUDE  Set Euler angles [phi, theta, psi].
-        %
-        %   Input:
-        %     euler - 3x1 or 1x3 Euler angle vector [rad]
-
-            obj.x(7:9) = euler(:);
+        function V = get_airspeed(obj,environment)
+            if nargin < 2
+                environment = [];
+            end
+            data = obj.get_air_data(environment);
+            V = data.airspeed_mps;
         end
 
-        function euler = get_attitude(obj)
-        % GET_ATTITUDE  Return Euler angles [phi, theta, psi].
-        %
-        %   Output:
-        %     euler - 3x1 Euler angle vector [rad]
-
-            euler = obj.x(7:9);
+        function alpha = get_alpha(obj,environment)
+            if nargin < 2
+                environment = [];
+            end
+            data = obj.get_air_data(environment);
+            alpha = data.alpha_rad;
         end
 
-        function set_heading(obj, psi)
-        % SET_HEADING  Set heading angle (yaw).
-        %
-        %   Input:
-        %     psi - heading angle [rad]
-
-            obj.x(9) = psi;
+        function beta = get_beta(obj,environment)
+            if nargin < 2
+                environment = [];
+            end
+            data = obj.get_air_data(environment);
+            beta = data.beta_rad;
         end
 
-        function psi = get_heading(obj)
-        % GET_HEADING  Return heading angle (yaw).
-        %
-        %   Output:
-        %     psi - heading angle [rad]
-
-            psi = obj.x(9);
+        function set_attitude(obj,euler_rad)
+            obj.x(7:9) = StateVector.validate_vector(euler_rad,3,'attitude');
         end
 
-        % ── Angular rates (body frame) ───────────────────────────────────
-
-        function set_angular_rates(obj, omega)
-        % SET_ANGULAR_RATES  Set body-axis angular rates [p, q, r].
-        %
-        %   Input:
-        %     omega - 3x1 or 1x3 angular rate vector [rad/s]
-
-            obj.x(10:12) = omega(:);
+        function euler_rad = get_attitude(obj)
+            euler_rad = obj.x(7:9);
         end
 
-        function omega = get_angular_rates(obj)
-        % GET_ANGULAR_RATES  Return body-axis angular rates [p, q, r].
-        %
-        %   Output:
-        %     omega - 3x1 angular rate vector [rad/s]
-
-            omega = obj.x(10:12);
+        function set_heading(obj,psi_rad)
+            StateVector.validate_scalar(psi_rad,'heading');
+            obj.x(9) = psi_rad;
         end
 
-        % ── Convenience display methods ──────────────────────────────────
+        function psi_rad = get_heading(obj)
+            psi_rad = obj.x(9);
+        end
 
-        function print_state(obj)
-        % PRINT_STATE  Print a formatted summary of the current state.
+        function set_angular_rates(obj,omega_body_radps)
+            obj.x(10:12) = StateVector.validate_vector(omega_body_radps,3,'angular rates');
+        end
 
-            fprintf('\n=== STATE VECTOR ===\n');
-            fprintf('Position (NED)   : [%8.2f %8.2f %8.2f] m\n', obj.x(1), obj.x(2), obj.x(3));
-            fprintf('Altitude         : %8.2f m\n', -obj.x(3));
-            fprintf('Velocity (body)  : [%8.3f %8.3f %8.3f] m/s\n', obj.x(4), obj.x(5), obj.x(6));
-            fprintf('Airspeed         : %8.3f m/s\n', norm(obj.x(4:6)));
-            fprintf('Alpha / Beta     : %8.3f / %8.3f deg\n', rad2deg(obj.get_alpha()), rad2deg(obj.get_beta()));
-            fprintf('Euler (phi/th/ps): [%8.3f %8.3f %8.3f] deg\n', rad2deg(obj.x(7)), rad2deg(obj.x(8)), rad2deg(obj.x(9)));
-            fprintf('Rates (p/q/r)    : [%8.3f %8.3f %8.3f] deg/s\n', rad2deg(obj.x(10)), rad2deg(obj.x(11)), rad2deg(obj.x(12)));
-            fprintf('====================\n\n');
+        function omega_body_radps = get_angular_rates(obj)
+            omega_body_radps = obj.x(10:12);
         end
 
         function C_bn = get_dcm_ned_to_body(obj)
-% GET_DCM_NED_TO_BODY  Return DCM from NED frame to body frame.
-%
-%   Uses the standard aerospace 3-2-1 Euler-angle convention:
-%   yaw (psi), pitch (theta), roll (phi).
-%
-%   Transformation:
-%     v_body = C_bn * v_ned
-%     v_ned  = C_bn.' * v_body
-%
-%   Reference:
-%     Stevens, B. L., Lewis, F. L., and Johnson, E. N.,
-%     Aircraft Control and Simulation, 3rd ed., Wiley, 2015.
+            C_bn = FlightEnvironment.dcm_ned_to_body(obj.x(7:9));
+        end
 
-    phi   = obj.x(7);
-    theta = obj.x(8);
-    psi   = obj.x(9);
+        function velocity_ned_mps = get_velocity_ned(obj)
+            C_bn = obj.get_dcm_ned_to_body();
+            velocity_ned_mps = C_bn.'*obj.x(4:6);
+        end
 
-    cph = cos(phi);   sph = sin(phi);
-    cth = cos(theta); sth = sin(theta);
-    cps = cos(psi);   sps = sin(psi);
+        function air_velocity_ned_mps = get_air_velocity_ned(obj,environment)
+            if nargin < 2
+                environment = [];
+            end
+            data = obj.get_air_data(environment);
+            C_bn = obj.get_dcm_ned_to_body();
+            air_velocity_ned_mps = C_bn.'*data.air_velocity_body_mps;
+        end
 
-    C_bn = [ cth*cps,             cth*sps,            -sth;
-             sph*sth*cps-cph*sps, sph*sth*sps+cph*cps, sph*cth;
-             cph*sth*cps+sph*sps, cph*sth*sps-sph*cps, cph*cth];
-end
+        function print_state(obj,environment)
+            if nargin < 2
+                environment = [];
+            end
+            data = obj.get_air_data(environment);
+            fprintf('\n=== STATE VECTOR ===\n');
+            fprintf('Position NED     : [%8.2f %8.2f %8.2f] m\n',obj.x(1:3));
+            fprintf('Altitude         : %8.2f m\n',-obj.x(3));
+            fprintf('Ground velocity  : [%8.3f %8.3f %8.3f] m/s body\n',obj.x(4:6));
+            fprintf('Air velocity     : [%8.3f %8.3f %8.3f] m/s body\n',data.air_velocity_body_mps);
+            fprintf('Airspeed / Mach  : %8.3f / %8.4f\n',data.airspeed_mps,data.Mach);
+            fprintf('Alpha / Beta     : %8.3f / %8.3f deg\n',rad2deg(data.alpha_rad),rad2deg(data.beta_rad));
+            fprintf('Temperature      : %8.3f K\n',data.temperature_K);
+            fprintf('Euler angles     : [%8.3f %8.3f %8.3f] deg\n',rad2deg(obj.x(7:9)));
+            fprintf('Angular rates    : [%8.3f %8.3f %8.3f] deg/s\n',rad2deg(obj.x(10:12)));
+            fprintf('====================\n\n');
+        end
+    end
 
-        function V_ned = get_velocity_ned(obj)
-% GET_VELOCITY_NED  Return body velocity resolved in the NED frame.
-%
-%   Uses:
-%     v_ned = C_bn.' * v_body
-%
-%   Output:
-%     V_ned - 3x1 velocity vector in NED frame [m/s]
+    methods (Static,Access = private)
+        function vector = validate_vector(vector,n,name)
+            vector = vector(:);
+            if numel(vector) ~= n || ~isreal(vector) || any(~isfinite(vector))
+                error('StateVector:InvalidVector', '%s must be a finite real %d-vector.',name,n);
+            end
+        end
 
-    C_bn  = obj.get_dcm_ned_to_body();
-    V_ned = C_bn.' * obj.x(4:6);
-end
+        function validate_scalar(value,name)
+            if ~isscalar(value) || ~isreal(value) || ~isfinite(value)
+                error('StateVector:InvalidScalar', '%s must be a finite real scalar.',name);
+            end
+        end
 
+        function validate_environment(environment)
+            if ~isa(environment,'FlightEnvironment') || ~isvalid(environment)
+                error('StateVector:InvalidEnvironment', 'environment must be a valid FlightEnvironment.');
+            end
+        end
     end
 end
