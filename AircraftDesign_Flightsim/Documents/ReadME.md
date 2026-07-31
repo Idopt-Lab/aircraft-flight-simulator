@@ -42,31 +42,27 @@ The same aircraft definition is reused for:
 # Repository Structure
 
 ```text
-AircraftDesign_Flightsim/
+aircraft-flight-simulator/
 │
-├── MATLAB/
-│   ├── classes/
-│   │     Core object-oriented framework classes
+├── AircraftDesign_Flightsim/
+│   ├── MATLAB/
+│   │   ├── classes/
+│   │   │     Core object-oriented framework classes
+│   │   │
+│   │   ├── examples/
+│   │   │     Example aircraft setup scripts (Cessna172, F16, Boein737, Quad)
+│   │   │
+│   │   ├── Tutorials/
+│   │   │     Tutorial examples
+│   │   │
+│   │   └── Testcase/
+│   │         Validation and testing scripts
 │   │
-│   ├── examples/
-│   │     Example aircraft setup scripts
-│   │
-│   ├── Tutorials/
-│   │     Tutorial examples
-│   │
-│   ├── Testcase/
-│   │     Validation and testing scripts
-│
-├── CesiumJS/
-│   ├── main.py
-│   │     Python WebSocket server
-│   │
-│   ├── index.html
-│   │     CesiumJS visualization page
+│   └── CesiumJS/
+│         Python WebSocket server and CesiumJS visualization page
 │
 ├── UDP_Joystick_Stuff/
-│   ├── Send_FDM_Torg.py
-│   │     UDP joystick interface
+│   │     UDP joystick interface scripts
 │
 └── README.md
 ```
@@ -134,16 +130,20 @@ savepath
 
 ## 3. Run Example Scripts
 
-Example scripts are located in:
+Example scripts are located per-aircraft under `examples/`:
 
 ```text
-examples/
+examples/Cessna172/
+examples/F16/
+examples/Boein737/
+examples/Quad/
 ```
 
 Example:
 
 ```matlab
-run('examples/C172_Trim_Example.m')
+run('examples/Cessna172/cessna.m')
+run('examples/F16/brand4pointtrim.m')
 ```
 
 ---
@@ -247,7 +247,7 @@ http://localhost:8000
 ## 1. Navigate to UDP Joystick Folder
 
 ```powershell
-cd "C:\Path\To\AircraftDesign_Flightsim\UDP_Joystick_Stuff"
+cd "C:\Path\To\UDP_Joystick_Stuff"
 ```
 
 ## 2. Create Virtual Environment
@@ -274,9 +274,6 @@ pip install pygame websockets
 python Send_FDM.py
 ```
 
-
-are not used on Windows.
-
 ---
 
 # Linux
@@ -284,7 +281,7 @@ are not used on Windows.
 ## 1. Navigate to UDP Joystick Folder
 
 ```bash
-cd ~/AircraftDesign_Flightsim/UDP_Joystick_Stuff
+cd ~/UDP_Joystick_Stuff
 ```
 
 ## 2. Create Virtual Environment
@@ -366,10 +363,8 @@ The same framework architecture is reused across all aircraft configurations wit
 
 ---
 
-
----
-
 # Citation
+
 ```text
 Naman Kumar Shetty
 Aircraft-Agnostic Modular Framework (AAMF)
@@ -384,9 +379,9 @@ Master of Science Report
 
 Developed by:
 
-**Naman Kumar Shetty**  
-Master of Science in Aerospace Engineering  
-Virginia Polytechnic Institute and State University  
+**Naman Kumar Shetty**
+Master of Science in Aerospace Engineering
+Virginia Polytechnic Institute and State University
 Blacksburg, Virginia
 
 GitHub Repository:
