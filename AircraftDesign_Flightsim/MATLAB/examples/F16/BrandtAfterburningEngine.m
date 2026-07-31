@@ -51,7 +51,12 @@ classdef BrandtAfterburningEngine < PropulsiveElement
 
         function [F,M,fuel_flow] = get_FM(obj,x,u) %#ok<INUSD>
             altitude_m = max(-x(3),0);
-            V_mps = norm(x(4:6));
+            % Air-relative airspeed (matches the aero model's convention in
+            % CoefficientAerodynamics.get_FM); using raw ground-relative
+            % norm(x(4:6)) here would disagree with the aero side under
+            % any nonzero wind, since the two load sources would then be
+            % evaluating Mach/thrust and CL/CD at different velocities.
+            [~,V_mps,~,~,~] = obj.extract_atmos(x);
 
             atm = obj.brandtAtmosphere(altitude_m*3.280839895);
             Mach = V_mps*3.280839895/ max(atm.speed_of_sound_fps,1e-9);
@@ -109,7 +114,16 @@ classdef BrandtAfterburningEngine < PropulsiveElement
                     TSFC = TSFC_dry;
             end
 
-            engine_valid = isfinite(lapse_raw) && lapse_raw >= 0 && Mach <= obj.maximum_mach;
+            % Mach exceeding the validated envelope is flagged via
+            % engine_valid (and surfaced through get_operating_status) but
+            % must not force a discontinuous jump to zero thrust: nothing
+            % in the lapse formula itself decays toward zero as Mach
+            % approaches maximum_mach, so hard-zeroing here produced a
+            % thrust cliff exactly where a max-speed search would
+            % naturally probe. Only a numerically broken lapse (NaN/Inf or
+            % negative) should actually zero the output.
+            lapse_numerically_valid = isfinite(lapse_raw) && lapse_raw >= 0;
+            engine_valid = lapse_numerically_valid && Mach <= obj.maximum_mach;
             thrust_usable_lbf = max(thrust_raw_lbf,0);
 
             if mode == "idle"
@@ -125,7 +139,7 @@ classdef BrandtAfterburningEngine < PropulsiveElement
             if mode == "idle"
                 fuel_flow_kgps = max(fuel_flow_kgps,obj.idle_fuel_flow_kgps);
             end
-            if ~engine_valid
+            if ~lapse_numerically_valid
                 thrust_N = 0;
                 if mode ~= "idle"
                     fuel_flow_kgps = 0;

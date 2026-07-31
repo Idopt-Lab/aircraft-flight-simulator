@@ -32,7 +32,11 @@ omega = state_vec(10:12);
 
 altitude_m = max(-state_vec(3),0);
 V_mps = max(norm(vel),1e-6);
-alpha = atan2(vel(3),max(abs(vel(1)),1e-9));
+% Matches FlightEnvironment's canonical atan2(w,u) convention (no abs()):
+% atan2 is already well-defined and smooth at u=0, and folding in abs(u)
+% both produced a wrong-quadrant alpha for reversed body-x flow and a
+% slope discontinuity at u=0 that a finite-difference optimizer could hit.
+alpha = atan2(vel(3),vel(1));
 beta = atan2(vel(2),max(hypot(vel(1),vel(3)),1e-9));
 
 altitude_ft = altitude_m*3.280839895;
@@ -95,6 +99,21 @@ dde = de_q-data.trim.pitch_control_ref_rad;
 
 CL = data.trim.CL_ref +data.stability.CLa*dalpha +data.stability.CLde*dde +data.stability.CLq*q_hat;
 
+% KNOWN LIMITATION: data.stability.Cma_landing is derived (from a
+% separate, more-aft reference CG, xcg_landing_ft) but is never read
+% anywhere in this file -- Cm_alpha is always evaluated at the takeoff
+% reference CG (xcg_takeoff_ft) regardless of the aircraft's actual live
+% weight/CG state. This function's signature (state_vec, control_vec,
+% geometry) has no channel for the caller to signal which configuration
+% is active, and this model's internal xcg_takeoff/xcg_landing reference
+% points are not reconciled with the Aircraft object's own live
+% component-based CG (they are two independent representations of the
+% same physical aircraft). Properly interpolating Cm_alpha by current
+% fuel/weight state would require reconciling those two CG systems, which
+% is a larger design change than a local fix here; until then, static-
+% margin/Cm_alpha results from this model should be read as evaluated at
+% the takeoff CG for every flight condition, including landing-weight
+% analyses.
 Cm = data.trim.Cm_ref +data.stability.Cma_takeoff*dalpha +data.stability.Cmde*dde +data.stability.Cmq*q_hat;
 
 CY = data.stability.CYb*beta_q +data.stability.CYp*p_hat +data.stability.CYr*r_hat +data.stability.CYda*da_q +data.stability.CYdr*dr_q;

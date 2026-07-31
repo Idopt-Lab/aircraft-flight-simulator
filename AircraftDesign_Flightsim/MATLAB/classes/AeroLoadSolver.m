@@ -5,6 +5,7 @@ classdef AeroLoadSolver < LoadSolver
         geom = []
         aircraft = []
         contract_tolerance = 1e-9
+        last_coeff = struct()
     end
 
     methods
@@ -31,9 +32,44 @@ classdef AeroLoadSolver < LoadSolver
 
         function [F_local,M_local] = get_FM_localAxis(obj,x,u)
             obj.validate_frame_contract(x);
-            [F_local,M_local,~] = obj.aero_model.get_FM(x,u,obj.geom,obj.aircraft);
+            [F_local,M_local,coeff] = obj.aero_model.get_FM(x,u,obj.geom,obj.aircraft);
             F_local = obj.validate_load_vector(F_local,'force');
             M_local = obj.validate_load_vector(M_local,'moment');
+            obj.last_coeff = coeff;
+        end
+
+        function status = get_operating_status(obj)
+            % Surfaces the aero model's own envelope-validity flag (e.g.
+            % F16ABrandtLookup's "valid"/"envelope_violation"), which was
+            % previously computed but discarded by get_FM_localAxis
+            % (the lookup only ever clamps its inputs for a numerically
+            % safe evaluation; validity must be checked separately to
+            % detect an out-of-envelope trim/performance point).
+            c = obj.last_coeff;
+            if ~isstruct(c) || ~isfield(c,'valid')
+                status = struct('valid',true,'constraint_names',strings(0,1), 'constraint_values',zeros(0,1),'lookup_clamped',false);
+                return;
+            end
+
+            is_valid = logical(c.valid);
+            if isfield(c,'constraint_names') && isfield(c,'constraint_c')
+                constraint_names = string(c.constraint_names(:));
+                constraint_values = c.constraint_c(:);
+            else
+                constraint_names = strings(0,1);
+                constraint_values = zeros(0,1);
+            end
+
+            lookup_clamped = false;
+            if isfield(c,'lookup_clamped')
+                lookup_clamped = logical(c.lookup_clamped);
+            end
+
+            status = struct( ...
+                'valid',is_valid, ...
+                'constraint_names',constraint_names, ...
+                'constraint_values',constraint_values, ...
+                'lookup_clamped',lookup_clamped);
         end
 
         function validate_frame_contract(obj,x)

@@ -109,6 +109,7 @@ classdef CoefficientAerodynamics < Aerodynamics
             coeff.beta_rad = air.beta_rad;
             coeff.airspeed_mps = air.airspeed_mps;
             coeff.Mach = air.Mach;
+            coeff.mach = air.Mach; % keep in sync with any lowercase "mach" field the lookup itself returned
             coeff.altitude_m = air.altitude_m;
             coeff.temperature_K = air.temperature_K;
             coeff.pressure_Pa = air.pressure_Pa;

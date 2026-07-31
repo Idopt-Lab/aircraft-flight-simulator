@@ -575,6 +575,14 @@ classdef PerformanceAnalysis < handle
             out.propulsion_operating_report_available = propulsion_operating_report_available;
             out.propulsion_available_valid = propulsion_operating_report_available.valid;
 
+            % The aero model's own envelope-validity flag (out-of-range
+            % alpha/beta/Mach/control, or CL beyond the clean-config
+            % limit) was previously computed by the lookup but discarded;
+            % this surfaces it the same way propulsion validity already
+            % is, informationally rather than as a hard trim constraint.
+            out.aero_operating_report = ac.get_aero_operating_report();
+            out.aero_envelope_valid = out.aero_operating_report.valid;
+
             out.xdot_dynamic = xdot_d;
 
             if isfield(extras,'psi_dot') && isfinite(extras.psi_dot)
@@ -1668,6 +1676,20 @@ classdef PerformanceAnalysis < handle
                     end
 
                     fprintf('h = %6.0f m | failed after %d attempts | %s\n', alt_range_m(ia),attempt_count(ia),error_message(ia));
+                end
+
+                % Stop once ROC has crossed zero: since ROC decreases
+                % monotonically with altitude above the true ceiling, this
+                % single point already brackets both the service (>0 fpm)
+                % and absolute (0 fpm) crossings against the last valid
+                % climbing point, so continuing further up the requested
+                % altitude grid would only spend seed attempts on points
+                % beyond the aircraft's operating envelope.
+                if point_valid(ia) && isfinite(best_ROC_fpm(ia)) && best_ROC_fpm(ia) < 0
+                    if ia < n_alt
+                        fprintf('ROC crossed zero at h = %6.0f m; stopping early (%d of %d altitude points evaluated).\n', alt_range_m(ia),ia,n_alt);
+                    end
+                    break;
                 end
             end
 
@@ -3850,6 +3872,10 @@ classdef PerformanceAnalysis < handle
                 spec.engine_off = logical(spec.engine_off);
             end
 
+            % weights is accepted for struct-shape compatibility with
+            % GenericTrimSolver but unused here: the EOM residual is an
+            % exact equality constraint (ceq), not a weighted penalty, so
+            % per-residual weighting has no effect.
             if ~isfield(spec,'weights') || isempty(spec.weights)
                 spec.weights = ones(obj.residual_count(spec),1);
             end

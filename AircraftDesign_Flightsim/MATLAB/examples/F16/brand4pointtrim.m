@@ -1,8 +1,10 @@
-%% F-16 COMPLETE TRIM-CONSTRAINED PERFORMANCE ANALYSIS
-% Aircraft definition and analysis configuration are separated below with
-% MATLAB sections. All aerodynamic, propulsion, trim and performance
-% quantities are returned by Aircraft and PerformanceAnalysis; this driver
-% only selects analyses, reports their outputs and plots them.
+%% F-16 TRIM-CONSTRAINED PERFORMANCE ANALYSIS
+% Aircraft definition below; PerformanceAnalysis returns all trim and
+% performance quantities. This driver runs: single-point performance
+% metrics (stall, best range/endurance, best glide, best angle/rate
+% climb, max level speed, sustained/coordinated turn), a baseline trim
+% with stability analysis, takeoff and landing, and a velocity sweep
+% (dry and afterburner) that feeds the aerodynamics/thrust-power plots.
 
 clear;
 clc;
@@ -95,7 +97,6 @@ aircraft.update_frame_position("gravity_cg",cg_body_m);
 aircraft.set_reference_frame("cg");
 
 %% PERFORMANCE ANALYSIS CONFIGURATION
-% Flight conditions, grids, limits, solver options and trim bounds.
 
 setup = F16PerformanceConfig(aircraft);
 performance = aircraft.get_performance();
@@ -107,7 +108,6 @@ fast_solver = setup.fast_solver;
 bounds = setup.bounds;
 
 %% DRY-POWER PERFORMANCE
-% Every result below is returned directly by PerformanceAnalysis.
 
 engine.set_rating_mode("dry");
 
@@ -115,8 +115,9 @@ results.dry.stall = performance.optimize_stall_speed(condition,solver,cfg,bounds
 results.dry.best_range = performance.optimize_paper_best_range(condition,solver,cfg,bounds.range);
 results.dry.best_endurance = performance.optimize_paper_best_endurance(condition,solver,cfg,bounds.endurance);
 results.glide = performance.analyze_glide_performance(condition,solver,cfg,bounds.glide);
+results.dry.best_angle_climb = performance.optimize_best_angle_climb(condition,solver,cfg,bounds.climb);
+results.dry.best_rate_climb = performance.optimize_best_rate_climb(condition,solver,cfg,bounds.climb);
 results.dry.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
-results.dry.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
 
 %% BASELINE TRIM AND STABILITY
 % Dry rating, matching a subsonic cruise condition (no afterburner needed
@@ -164,7 +165,6 @@ results.baseline = baseline;
 results.stability = struct('stab',stab,'Cm_alpha',Cm_alpha,'Cn_beta',Cn_beta);
 
 %% AFTERBURNER PERFORMANCE
-% Climb, maximum speed, required/available curves and sustained turns.
 
 engine.set_rating_mode("afterburner");
 
@@ -172,16 +172,15 @@ results.afterburner.best_angle_climb = performance.optimize_best_angle_climb(con
 results.afterburner.best_rate_climb = performance.optimize_best_rate_climb(condition,solver,cfg,bounds.climb);
 results.afterburner.maximum_level_speed = performance.optimize_max_level_speed(condition,solver,cfg,bounds.maximum_speed);
 results.afterburner.velocity_sweep = performance.evaluate_velocity_sweep(condition,setup.velocity_grid_mps,setup.level_spec,fast_solver,cfg);
-results.afterburner.required_available = performance.compute_paper_required_available_curve(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.range);
-results.turn.sustained_curve = performance.compute_sustained_turn_curve(condition,setup.turn_velocity_grid_mps,fast_solver,cfg,bounds.turn);
 results.turn.sustained_optimum = performance.optimize_sustained_turn(condition,solver,cfg,bounds.turn);
 results.turn.coordinated = performance.optimize_coordinated_turn(setup.turn_condition,setup.coordinated_turn_bank_deg, solver,cfg,bounds.turn);
 
 %% TAKEOFF AND LANDING
-% Same aircraft object; takeoff uses the afterburner rating already
-% active above, landing switches to idle.
+% Same aircraft object; takeoff uses dry rating, landing uses idle.
 
 fprintf("\n=== F-16 TAKEOFF ANALYSIS ===\n");
+
+engine.set_rating_mode("dry");
 
 to = aircraft.get_takeoff();
 [TO_m,to_res] = to.calculate_takeoff(0,0,3000); %#ok<NASGU>
@@ -200,66 +199,30 @@ engine.set_rating_mode("afterburner");
 results.takeoff = to_res;
 results.landing = ld_res;
 
-%% MANEUVER AND GUST ENVELOPES
-
-results.envelope.accelerated_stall = performance.compute_accelerated_stall(condition,setup.accelerated_stall_load_factors,cfg);
-results.envelope.vn = performance.compute_vn_diagram(condition,setup.envelope_velocity_grid_mps,cfg);
-results.envelope.gust = performance.compute_gust_envelope(condition,setup.envelope_velocity_grid_mps,setup.gust);
-results.turn.instantaneous = performance.compute_instantaneous_turn_curve(condition,setup.turn_velocity_grid_mps,cfg);
-
-%% ENERGY-MANEUVERABILITY AND ACCELERATION
-
-results.energy.Ps_map = performance.compute_specific_excess_power_map(condition,setup.Ps_velocity_grid_mps,setup.Ps_load_factors, fast_solver,cfg,bounds.turn);
-results.energy.acceleration = performance.compute_acceleration_schedule(condition,setup.velocity_grid_mps,fast_solver,cfg,bounds.maximum_speed);
-
-%% ALTITUDE ENVELOPE, CLIMB SCHEDULE AND CEILINGS
-
-results.altitude.mach_envelope = performance.compute_mach_altitude_envelope(condition,setup.altitude_grid_m,solver,cfg,bounds.envelope);
-results.altitude.climb = performance.optimize_climb_schedule(condition,setup.altitude_grid_m,solver,cfg,bounds.climb);
-
 %% COLLECT COMPLETE FRAMEWORK OUTPUTS
-% Trim states, control vectors and control summaries remain inside point_opt.
 
 results.aircraft = aircraft;
 results.engine = engine;
 results.setup = setup;
 
-%% PERFORMANCE SUMMARY
-% Values and control vectors are extracted directly from point_opt results.
+%% SUMMARY AND PLOTS
 
 printF16PerformanceSummary(results);
-
-%% PERFORMANCE PLOTS
-% Plot only fields already calculated and returned by PerformanceAnalysis.
-
-plotF16Performance(results);
+plotF16VelocitySweep(results);
 
 F16Performance = results;
 
 %% LOCAL PERFORMANCE-CONFIGURATION FUNCTION
 function setup = F16PerformanceConfig(aircraft)
 
-%% Conditions and analysis grids
-
-setup.condition = struct('altitude_m',9000);
-setup.turn_condition = struct('altitude_m',9000,'velocity_mps',250);
+setup.condition = struct('altitude_m',9144);
+setup.turn_condition = struct('altitude_m',9144,'velocity_mps',250);
 setup.coordinated_turn_bank_deg = 60;
 
 setup.baseline_altitude_m = 9144;
 setup.baseline_mach = 0.600;
 
 setup.velocity_grid_mps = (140:10:550).';
-setup.turn_velocity_grid_mps = (150:15:330).';
-setup.Ps_velocity_grid_mps = (150:20:330).';
-setup.Ps_load_factors = (1:1:6).';
-% The ceiling interpolator needs optimized ROC values on both sides of the
-% requested threshold. This is only the search domain; PerformanceAnalysis
-% determines the actual ceiling from the resulting ROC schedule.
-setup.altitude_grid_m = (0:2000:30000).';
-setup.envelope_velocity_grid_mps = linspace(0,550,500).';
-setup.accelerated_stall_load_factors = (1:0.5:9).';
-
-%% Aircraft performance limits and propulsion settings
 
 setup.performance = struct( ...
     'available_throttle',1, ...
@@ -276,8 +239,6 @@ setup.performance = struct( ...
     'max_dynamic_pressure_Pa',2133*47.88025898033584, ...
     'service_ceiling_threshold_fpm',100, ...
     'enforce_propulsion_constraints',true);
-
-%% Nonlinear solver settings
 
 setup.solver = struct( ...
     'residual_tolerance',1e-5, ...
@@ -311,8 +272,6 @@ setup.fast_solver = struct( ...
         "FiniteDifferenceType","forward", ...
         "FiniteDifferenceStepSize",1e-4));
 
-%% Level-flight trim specification
-
 setup.level_spec = struct( ...
     'mode',"level", ...
     'variables',["alpha";"control_pitch";"throttle"], ...
@@ -337,7 +296,6 @@ setup.bounds.climb = struct( ...
     'alpha0_deg',1.5,'alpha_min_deg',-5,'alpha_max_deg',20, ...
     'elevator0_deg',1.7,'elevator_min_deg',-25,'elevator_max_deg',25, ...
     'gamma0_deg',12,'gamma_min_deg',0,'gamma_max_deg',45, ...
-    'ceiling_gamma_min_deg',-10,'ceiling_descent_seed_deg',-3, ...
     'throttle0',1);
 
 setup.bounds.range = struct( ...
@@ -375,39 +333,13 @@ setup.bounds.turn = struct( ...
     'rudder0_deg',0,'rudder_min_deg',-30,'rudder_max_deg',30, ...
     'Ps_trim_tolerance_mps',0.05);
 
-setup.bounds.envelope = struct( ...
-    'V_lb',40,'V_ub',650,'V0',450, ...
-    'max_Mach',2,'stall_speed_factor',1.001, ...
-    'alpha0_deg',2,'alpha_min_deg',-5,'alpha_max_deg',20, ...
-    'elevator0_deg',1,'elevator_min_deg',-25,'elevator_max_deg',25);
-
-%% Gust-model inputs
-
-x_reference = zeros(12,1);
-x_reference(3) = -setup.condition.altitude_m;
-x_reference(4) = setup.turn_condition.velocity_mps;
-reference_coefficients = F16ABrandtLookup(x_reference,zeros(4,1),aircraft.geometry);
-setup.gust = struct('CL_alpha_per_rad',reference_coefficients.derivatives.CLa, 'Ude_mps',15.24, 'Kg',0.88);
-
 end
 
 %% LOCAL PLOTTING FUNCTION
-function plotF16Performance(results)
-
-%% Extract valid velocity-sweep points
+function plotF16VelocitySweep(results)
 
 dry = sweepSeries(results.dry.velocity_sweep);
 afterburner = sweepSeries(results.afterburner.velocity_sweep);
-dry_curve = results.dry.required_available;
-afterburner_curve = results.afterburner.required_available;
-instantaneous = results.turn.instantaneous;
-sustained = results.turn.sustained_curve;
-vn = results.envelope.vn;
-gust = results.envelope.gust;
-Ps_map = results.energy.Ps_map;
-acceleration = results.energy.acceleration;
-mach_envelope = results.altitude.mach_envelope;
-climb = results.altitude.climb;
 
 %% Aerodynamic plots
 
@@ -439,47 +371,6 @@ plot(dry.V_mps,dry.L_over_D,"LineWidth",1.5);
 grid on;
 xlabel("V [m/s]");
 ylabel("L/D");
-
-%% Trim-state and control plots
-
-figure("Name","Trim States and Controls");
-tiledlayout(3,2,"TileSpacing","compact");
-nexttile;
-plot(dry.V_mps,dry.alpha_deg,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("\alpha [deg]");
-nexttile;
-plot(dry.V_mps,dry.theta_deg,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("\theta [deg]");
-nexttile;
-plot(dry.V_mps,dry.elevator_deg,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Stabilator [deg]");
-nexttile;
-plot(dry.V_mps,dry.throttle,"LineWidth",1.5);
-hold on;
-plot(afterburner.V_mps,afterburner.throttle,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Throttle");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-plot(dry.V_mps,dry.fuel_flow_trim,"LineWidth",1.5);
-hold on;
-plot(afterburner.V_mps,afterburner.fuel_flow_trim,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Fuel flow [kg/s]");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-semilogy(dry.V_mps,dry.residual_inf,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Residual infinity norm");
 
 %% Propulsion and power plots
 
@@ -522,230 +413,13 @@ xlabel("V [m/s]");
 ylabel("Excess power [MW]");
 legend("Dry","Afterburner","Location","best");
 
-%% Energy, range and endurance plots
-
-figure("Name","Energy, Range and Endurance");
-tiledlayout(2,3,"TileSpacing","compact");
-nexttile;
-plot(dry.V_mps,dry.Ps_mps,"LineWidth",1.5);
-hold on;
-plot(afterburner.V_mps,afterburner.Ps_mps,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("P_s [m/s]");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-plot(dry.V_mps,dry.ROC_available_mps,"LineWidth",1.5);
-hold on;
-plot(afterburner.V_mps,afterburner.ROC_available_mps,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("Available ROC [m/s]");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-plot(dry.V_mps,dry.speed_acceleration_mps2,"LineWidth",1.5);
-hold on;
-plot(afterburner.V_mps,afterburner.speed_acceleration_mps2,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("Acceleration [m/s^2]");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-plot(dry.V_mps,dry.fuel_specific_range_m_per_kg/1000,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Specific range [km/kg]");
-nexttile;
-plot(dry.V_mps,dry.fuel_endurance_s_per_kg,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Endurance [s/kg]");
-nexttile;
-plot(dry.V_mps,dry.energy_rate_trim_W/1e6,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Energy rate [MW]");
-
-%% Required and available performance plots
-
-figure("Name","Required and Available Performance");
-tiledlayout(2,2,"TileSpacing","compact");
-nexttile;
-plot(dry_curve.V_mps,dry_curve.required.thrust_N/1000,"LineWidth",1.5);
-hold on;
-plot(dry_curve.V_mps,dry_curve.available.thrust_N/1000,"LineWidth",1.5);
-plot(afterburner_curve.V_mps, afterburner_curve.available.thrust_N/1000,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Thrust [kN]");
-legend("Required","Dry available","AB available","Location","best");
-nexttile;
-plot(dry_curve.V_mps,dry_curve.required.power_W/1e6,"LineWidth",1.5);
-hold on;
-plot(dry_curve.V_mps,dry_curve.available.power_W/1e6,"LineWidth",1.5);
-plot(afterburner_curve.V_mps, afterburner_curve.available.power_W/1e6,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Power [MW]");
-legend("Required","Dry available","AB available","Location","best");
-nexttile;
-plot(dry_curve.V_mps,dry_curve.excess_thrust_N/1000,"LineWidth",1.5);
-hold on;
-plot(afterburner_curve.V_mps, afterburner_curve.excess_thrust_N/1000,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("Excess thrust [kN]");
-legend("Dry","Afterburner","Location","best");
-nexttile;
-plot(dry_curve.V_mps,dry_curve.excess_power_W/1e6,"LineWidth",1.5);
-hold on;
-plot(afterburner_curve.V_mps, afterburner_curve.excess_power_W/1e6,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("Excess power [MW]");
-legend("Dry","Afterburner","Location","best");
-
-%% Flight-envelope plots
-
-figure("Name","V-n and Gust Envelope");
-fill([vn.V_mps;flipud(vn.V_mps)], [vn.n_pos;flipud(vn.n_neg)],[0.9 0.9 0.9],"EdgeColor","none");
-hold on;
-plot(vn.V_mps,vn.n_pos,"LineWidth",2);
-plot(vn.V_mps,vn.n_neg,"LineWidth",2);
-plot(gust.V_mps,gust.n_gust_pos,"--","LineWidth",1.5);
-plot(gust.V_mps,gust.n_gust_neg,"--","LineWidth",1.5);
-yline(1,":");
-xline(vn.Vs_mps,"--","V_s");
-xline(vn.Va_mps,"--","V_A");
-grid on;
-xlabel("V_{TAS} [m/s]");
-ylabel("Load factor");
-legend("Envelope","Positive maneuver","Negative maneuver", "Positive gust","Negative gust","Location","best");
-
-%% Turn-performance plots
-
-figure("Name","Turn Performance");
-tiledlayout(2,3,"TileSpacing","compact");
-iv = instantaneous.valid;
-sv = sustained.valid;
-nexttile;
-plot(instantaneous.V_mps(iv),instantaneous.turn_rate_degps(iv), "LineWidth",1.5);
-hold on;
-plot(sustained.V_mps(sv),sustained.turn_rate_degps(sv), "o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Turn rate [deg/s]");
-legend("Instantaneous","Sustained","Location","best");
-nexttile;
-plot(instantaneous.V_mps(iv),instantaneous.turn_radius_m(iv), "LineWidth",1.5);
-hold on;
-plot(sustained.V_mps(sv),sustained.turn_radius_m(sv), "o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Turn radius [m]");
-legend("Instantaneous","Sustained","Location","best");
-nexttile;
-plot(sustained.V_mps(sv),sustained.bank_deg(sv),"o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Bank [deg]");
-nexttile;
-plot(sustained.V_mps(sv),sustained.load_factor_n(sv), "o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Load factor");
-nexttile;
-plot(sustained.V_mps(sv),sustained.throttle(sv),"o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Throttle");
-nexttile;
-plot(sustained.V_mps(sv),sustained.elevator_deg(sv), "o-","LineWidth",1.5);
-hold on;
-plot(sustained.V_mps(sv),sustained.aileron_deg(sv), "o-","LineWidth",1.5);
-plot(sustained.V_mps(sv),sustained.rudder_deg(sv), "o-","LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Control [deg]");
-legend("Elevator","Aileron","Rudder","Location","best");
-
-%% Energy-maneuverability plots
-
-figure("Name","Specific Excess Power Map");
-contourf(Ps_map.V_mps,Ps_map.n,Ps_map.Ps_mps,20);
-colorbar;
-grid on;
-xlabel("V [m/s]");
-ylabel("Load factor");
-title("P_s [m/s]");
-
-figure("Name","Acceleration Schedule");
-tiledlayout(2,2,"TileSpacing","compact");
-nexttile;
-plot(acceleration.V_mps,acceleration.acceleration_mps2,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("Acceleration [m/s^2]");
-nexttile;
-plot(acceleration.V_mps,acceleration.Ps_mps,"LineWidth",1.5);
-yline(0,"--");
-grid on;
-xlabel("V [m/s]");
-ylabel("P_s [m/s]");
-nexttile;
-plot(acceleration.V_mps,acceleration.time_s,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Cumulative time [s]");
-nexttile;
-plot(acceleration.V_mps,acceleration.fuel_used_kg,"LineWidth",1.5);
-grid on;
-xlabel("V [m/s]");
-ylabel("Cumulative fuel [kg]");
-
-%% Altitude, climb and ceiling plots
-
-figure("Name","Mach-Altitude Envelope and Climb");
-tiledlayout(2,2,"TileSpacing","compact");
-nexttile;
-plot(mach_envelope.stall_Mach,mach_envelope.altitude_m/1000, "LineWidth",1.5);
-hold on;
-plot(mach_envelope.max_level_Mach,mach_envelope.altitude_m/1000, "LineWidth",1.5);
-grid on;
-xlabel("Mach");
-ylabel("Altitude [km]");
-legend("Stall","Maximum level","Location","best");
-nexttile;
-plot(climb.best_ROC_mps,climb.altitude_m/1000,"o-","LineWidth",1.5);
-xline(0,"--");
-grid on;
-xlabel("ROC [m/s]");
-ylabel("Altitude [km]");
-nexttile;
-plot(climb.best_V_mps,climb.altitude_m/1000,"o-","LineWidth",1.5);
-grid on;
-xlabel("Best climb V [m/s]");
-ylabel("Altitude [km]");
-nexttile;
-plot(climb.best_gamma_deg,climb.altitude_m/1000,"o-","LineWidth",1.5);
-xline(0,"--");
-grid on;
-xlabel("Climb angle [deg]");
-ylabel("Altitude [km]");
-
 end
 
 function data = sweepSeries(sweep)
 
 indices = find(sweep.valid);
 if isempty(indices)
-    error('plotF16Performance:NoValidSweepPoints', 'The velocity sweep contains no valid performance points.');
+    error('plotF16VelocitySweep:NoValidSweepPoints', 'The velocity sweep contains no valid performance points.');
 end
 points = [sweep.point{indices}];
 
@@ -754,10 +428,7 @@ fields = [ ...
     "alpha_deg";"theta_deg";"elevator_deg";"throttle"; ...
     "fuel_flow_trim";"T_required_N"; ...
     "T_available_N";"T_excess_N";"P_thrust_required_W"; ...
-    "P_thrust_available_W";"P_excess_W";"Ps_mps"; ...
-    "ROC_available_mps";"speed_acceleration_mps2"; ...
-    "fuel_specific_range_m_per_kg";"fuel_endurance_s_per_kg"; ...
-    "energy_rate_trim_W"];
+    "P_thrust_available_W";"P_excess_W";"Ps_mps"];
 
 for k = 1:numel(fields)
     name = fields(k);
@@ -776,9 +447,13 @@ rows = [ ...
     pointTableRow("Best endurance",results.dry.best_endurance); ...
     pointTableRow("Best glide",results.glide.best_glide); ...
     pointTableRow("Minimum sink",results.glide.min_sink); ...
-    pointTableRow("Best angle climb", ...
+    pointTableRow("Best angle climb (dry)", ...
+        results.dry.best_angle_climb); ...
+    pointTableRow("Best rate climb (dry)", ...
+        results.dry.best_rate_climb); ...
+    pointTableRow("Best angle climb (afterburner)", ...
         results.afterburner.best_angle_climb); ...
-    pointTableRow("Best rate climb", ...
+    pointTableRow("Best rate climb (afterburner)", ...
         results.afterburner.best_rate_climb); ...
     pointTableRow("Maximum level speed", ...
         results.afterburner.maximum_level_speed); ...
@@ -789,18 +464,25 @@ rows = [ ...
 fprintf('\n=== F-16 PERFORMANCE POINTS AND TRIM CONTROLS ===\n');
 disp(rows);
 
-climb = results.altitude.climb;
-fprintf('\n=== CEILING RESULTS FROM OPTIMIZED ROC SCHEDULE ===\n');
-fprintf('Service ceiling  : %.3f m (%.3f ft)\n', climb.service_ceiling_m,climb.service_ceiling_m*3.280839895);
-fprintf('Absolute ceiling : %.3f m (%.3f ft)\n', climb.absolute_ceiling_m,climb.absolute_ceiling_m*3.280839895);
+h = results.setup.condition.altitude_m;
+print_one_sweep("DRY",results.dry.velocity_sweep,h);
+print_one_sweep("AFTERBURNER",results.afterburner.velocity_sweep,h);
 
-climb_table = table( ...
-    climb.altitude_m,climb.best_V_mps,climb.best_Mach, ...
-    climb.best_gamma_deg,climb.best_ROC_mps,climb.best_ROC_fpm, ...
-    climb.best_fuel_flow,climb.point_valid,climb.solution_status, ...
-    'VariableNames',{'Altitude_m','V_y_mps','Mach','Gamma_deg', ...
-    'ROC_mps','ROC_fpm','FuelFlow_kgps','Valid','Status'});
-disp(climb_table);
+end
+
+function print_one_sweep(label,sweep,altitude_m)
+
+fprintf('\n=== F-16 VELOCITY SWEEP (%s), h = %.0f m ===\n',label,altitude_m);
+
+for i = 1:numel(sweep.velocity_mps)
+    if sweep.valid(i)
+        p = sweep.point{i};
+        fprintf('V=%6.1f m/s | Mach=%.3f | alpha=%6.2f deg | throttle=%.4f | CL=%.4f | CD=%.4f | L/D=%6.2f | T_excess=%8.1f N | Ps=%6.2f m/s | residual=%.2e\n', ...
+            sweep.velocity_mps(i),p.Mach,p.alpha_deg,p.throttle,p.CL,p.CD,p.L_over_D,p.T_excess_N,p.Ps_mps,sweep.residual_norm(i));
+    else
+        fprintf('V=%6.1f m/s | INVALID | %s\n',sweep.velocity_mps(i),sweep.error_message(i));
+    end
+end
 
 end
 

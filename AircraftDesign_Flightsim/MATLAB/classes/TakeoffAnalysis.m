@@ -244,7 +244,11 @@ classdef TakeoffAnalysis < handle
 
             res.distance_m = S_total;
             res.runway_length_m = runway_length_m;
-            res.runway_adequate = S_total <= runway_length_m;
+            % isfinite() guard: an infeasible ground roll (timed out, never
+            % reached VR) reports S_total = Inf as a sentinel; without the
+            % finiteness check, Inf <= Inf evaluates true and a takeoff the
+            % model itself determined impossible would read as "adequate".
+            res.runway_adequate = isfinite(S_total) && S_total <= runway_length_m;
 
             res.bfl_results = struct('BFL_m', NaN, 'note', 'N/A for single-engine aircraft');
 
@@ -297,7 +301,7 @@ classdef TakeoffAnalysis < handle
 
             res.distance_m = BFL;
             res.runway_length_m = runway_length_m;
-            res.runway_adequate = BFL <= runway_length_m;
+            res.runway_adequate = isfinite(BFL) && BFL <= runway_length_m;
 
             TO_m = BFL;
         end

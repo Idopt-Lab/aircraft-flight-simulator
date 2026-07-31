@@ -2,6 +2,11 @@ classdef GenericTrimSolver < handle
 % GENERICTRIMSOLVER
 % Configuration-driven aircraft trim solver.
 %
+% A second, structurally different trim solver from PerformanceAnalysis
+% (weighted-penalty least squares here vs. exact EOM equality constraint
+% there); used only by f16_cruise.m. Do not assume a residual_tolerance
+% tuned here means the same thing there (different residual units/norm).
+%
 % This solver does NOT decide whether trim is symmetric, longitudinal,
 % full 6-DOF, climb, descent, cruise, etc.
 %

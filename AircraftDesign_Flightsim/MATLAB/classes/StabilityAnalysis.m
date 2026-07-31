@@ -596,6 +596,37 @@ classdef StabilityAnalysis < handle
                 end
             end
 
+            % Aperiodic (real-eigenvalue) short period / phugoid: if the
+            % oscillatory search above found no candidates at all (e.g. the
+            % phugoid split into two real roots instead of a complex pair,
+            % which is a real possibility for a lightly-damped or
+            % relaxed-stability aircraft), fall back to longitudinal-
+            % dominant real eigenvalues rather than leaving these modes
+            % permanently "not identified" while they sit unnamed in
+            % obj.modes.Mode_i. Mirrors the fast/slow split already used
+            % for roll subsidence/spiral below.
+            long_real = real_cands([real_cands.long_ratio] >= [real_cands.lat_ratio]);
+
+            if isempty(obj.short_period) && ~isempty(long_real)
+                [~, k_sp] = max(abs([long_real.sig]));
+                sp = long_real(k_sp);
+
+                obj.short_period = struct('index', sp.i, 'lambda', sp.lambda, 'period', sp.period, 'damping', sp.zeta, 'time_constant', 1/max(abs(sp.sig), 1e-12));
+
+                obj.longitudinal_modes = unique([obj.longitudinal_modes sp.i]);
+
+                long_real = long_real([long_real.i] ~= sp.i);
+            end
+
+            if isempty(obj.phugoid) && ~isempty(long_real)
+                [~, k_ph] = min(abs([long_real.sig]));
+                ph = long_real(k_ph);
+
+                obj.phugoid = struct('index', ph.i, 'lambda', ph.lambda, 'period', ph.period, 'damping', ph.zeta, 'time_constant', 1/max(abs(ph.sig), 1e-12));
+
+                obj.longitudinal_modes = unique([obj.longitudinal_modes ph.i]);
+            end
+
             % Dutch roll
             if ~isempty(lat_osc)
 
@@ -638,13 +669,27 @@ classdef StabilityAnalysis < handle
 
                 if isempty(obj.spiral)
 
-                    nonzero = real_cands(abs([real_cands.sig]) > 1e-6);
+                    % Scoped to lat_real (lateral-dominant real
+                    % eigenvalues only), excluding whatever roll_subsidence
+                    % already claimed. Previously this fell back to the
+                    % full real_cands pool, which could mislabel an
+                    % unrelated longitudinal-dominant real eigenvalue
+                    % (e.g. a leftover short-period/phugoid root) as
+                    % "Spiral" whenever no candidate won the lateral-vs-
+                    % longitudinal ratio test above.
+                    remaining = lat_real;
+                    if ~isempty(obj.roll_subsidence)
+                        remaining = remaining([remaining.i] ~= obj.roll_subsidence.index);
+                    end
+                    nonzero = remaining(abs([remaining.sig]) > 1e-6);
 
                     if ~isempty(nonzero)
                         [~, k] = min(abs([nonzero.sig]));
                         sr = nonzero(k);
 
                         obj.spiral = struct('index', sr.i, 'lambda', sr.lambda, 'time_constant', 1/max(abs(sr.sig), 1e-12), 'stable', sr.sig < 0);
+
+                        obj.lateral_modes = unique([obj.lateral_modes sr.i]);
                     end
                 end
             end

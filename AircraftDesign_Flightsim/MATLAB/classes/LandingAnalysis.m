@@ -88,7 +88,11 @@ classdef LandingAnalysis < handle
             S_total = S_base * max(p.safety_factor, 1.0);
 
             obj.landing_distance = S_total;
-            obj.runway_adequate = S_total <= runway_length_m;
+            % isfinite() guard: an infeasible ground roll (timed out before
+            % stopping) reports S_total = Inf as a sentinel; without the
+            % finiteness check, Inf <= Inf evaluates true and a landing the
+            % model itself determined impossible would read as "adequate".
+            obj.runway_adequate = isfinite(S_total) && S_total <= runway_length_m;
 
             traj = obj.build_landing_trajectory(altitude_m, rho, a, Vapp, Vtd, p, W, Sref);
 

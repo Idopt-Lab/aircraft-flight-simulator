@@ -414,6 +414,44 @@ classdef Aircraft < handle
             report = struct('valid',all_valid && all(values <= 0), 'constraint_names',names, 'constraint_values',values, 'statuses',{statuses});
         end
 
+        function report = get_aero_operating_report(obj)
+            % Aggregates the envelope-validity status any AeroLoadSolver in
+            % the component tree computed on its most recent evaluation
+            % (e.g. out-of-range alpha/beta/Mach/control or CL beyond the
+            % clean-configuration limit). Mirrors
+            % get_propulsion_operating_report's contract so callers can
+            % check aero and propulsion validity the same way.
+            sources = obj.find_load_solvers(obj.root_component,'AeroLoadSolver');
+
+            names = strings(0,1);
+            values = zeros(0,1);
+            statuses = cell(numel(sources),1);
+            all_valid = true;
+
+            for k = 1:numel(sources)
+                solver = sources{k};
+                if ~ismethod(solver,'get_operating_status')
+                    continue;
+                end
+                status = solver.get_operating_status();
+                statuses{k} = status;
+                element_valid = isstruct(status) && isfield(status,'valid') && logical(status.valid);
+                all_valid = all_valid && element_valid;
+
+                if isfield(status,'constraint_names') && isfield(status,'constraint_values')
+                    local_names = string(status.constraint_names(:));
+                    local_values = status.constraint_values(:);
+                    if numel(local_names) ~= numel(local_values) || any(~isfinite(local_values))
+                        error('Aircraft:InvalidAeroStatus', ['Aero operating constraints must have ', 'matching finite names and values.']);
+                    end
+                    names = [names;local_names]; %#ok<AGROW>
+                    values = [values;local_values]; %#ok<AGROW>
+                end
+            end
+
+            report = struct('valid',all_valid && all(values <= 0), 'constraint_names',names, 'constraint_values',values, 'statuses',{statuses});
+        end
+
         function [F_total, M_total, fuel_flow, fm_total, u_applied] = compute_total_loads_about(obj, x, u, reference_frame)
 
             body_frame = obj.get_body_frame();
@@ -438,11 +476,22 @@ classdef Aircraft < handle
         end
         function [F_total, M_total, fuel_flow, fm_total, u_applied] = compute_total_loads_about_cg(obj, x, u)
             [~, cg, ~] = obj.compute_total_mass_properties(x);
+            body_frame = obj.get_body_frame();
 
             if ~obj.has_frame("cg")
                 obj.add_frame("cg", obj.body_frame_name, cg, @(x) eye(3));
             else
-                obj.update_frame_position("cg", cg);
+                % Re-parent every call, not just reposition: if
+                % set_body_frame later switches the aircraft to a
+                % different body frame, update_frame_position alone would
+                % leave "cg" chained to the stale parent while its
+                % position is computed relative to the new one, silently
+                % transporting moments about the wrong physical point with
+                % no error. Mirrors ensure_gravity_source's handling of
+                % the analogous "gravity_cg" frame below.
+                cg_frame = obj.get_frame("cg");
+                cg_frame.set_parent(body_frame);
+                cg_frame.set_position_in_parent(cg);
             end
 
             if obj.has_frame(obj.gravity_frame_name)
