@@ -1,389 +1,58 @@
-# Aircraft-Agnostic Modular Framework (AAMF)
+# Aircraft Flight Simulator
 
-MATLAB/Simulink-based modular aircraft simulation and analysis framework supporting:
+This simulator takes input from a MATLAB script and displays an interactive browser representation of the Earth and your aircraft.
 
-- Fixed-wing aircraft
-- Multirotor systems
-- Distributed propulsion configurations
-- Real-time simulation
-- CesiumJS visualization
-- UDP/WebSocket communication
-- Joystick and HIL-style interfaces
+## Badges
 
----
+![GitHub license](https://img.shields.io/github/license/Idopt-Lab/aircraft-flight-simulator)
+![GitHub stars](https://img.shields.io/github/stars/Idopt-Lab/aircraft-flight-simulator)
+![GitHub forks](https://img.shields.io/github/forks/Idopt-Lab/aircraft-flight-simulator)
+![GitHub issues](https://img.shields.io/github/issues/Idopt-Lab/aircraft-flight-simulator)
 
-# Overview
+## 📋 Table of Contents
 
-The Aircraft-Agnostic Modular Framework (AAMF) is a unified flight simulation framework developed using MATLAB, Simulink, and Python.
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
 
-The framework is built around a centralized `Aircraft` object that aggregates:
-
-- Geometry
-- Mass properties
-- Aerodynamics
-- Propulsion systems
-- Control surfaces
-- State representation
-- Control vectors
-
-Each subsystem independently computes force and moment contributions which are combined through a unified force and moment aggregation pipeline.
-
-The same aircraft definition is reused for:
-
-- Trim analysis
-- Stability analysis
-- Performance analysis
-- Mission planning
-- Time-domain simulation
-- Real-time visualization
-
----
-
-# Repository Structure
-
-```text
-aircraft-flight-simulator/
-│
-├── AircraftDesign_Flightsim/
-│   ├── MATLAB/
-│   │   ├── classes/
-│   │   │     Core object-oriented framework classes
-│   │   │
-│   │   ├── examples/
-│   │   │     Example aircraft setup scripts (Cessna172, F16, Boein737, Quad)
-│   │   │
-│   │   ├── Tutorials/
-│   │   │     Tutorial examples
-│   │   │
-│   │   └── Testcase/
-│   │         Validation and testing scripts
-│   │
-│   └── CesiumJS/
-│         Python WebSocket server and CesiumJS visualization page
-│
-├── UDP_Joystick_Stuff/
-│   │     UDP joystick interface scripts
-│
-└── README.md
-```
-
----
-
-# Framework Features
-
-- Aircraft-agnostic architecture
-- Modular object-oriented design
-- Unified trim/performance/stability workflow
-- Distributed propulsion support
-- Simulink integration
-- Real-time simulation capability
-- CesiumJS visualization
-- UDP/WebSocket communication
-- Joystick/HIL support
-- Reusable subsystem interfaces
-
----
-
-# Software Requirements
-
-## MATLAB
-
-Recommended:
-
-- MATLAB R2023a or newer
-- Simulink
-- Aerospace Blockset (recommended)
-
-## Python
-
-Required packages:
-
-- pygame
-- websockets
-
-Install using:
+## 🚀 Installation
 
 ```bash
-pip install pygame websockets
+# Clone the repository
+git clone https://github.com/Idopt-Lab/aircraft-flight-simulator
+
+# Navigate to project directory
+cd aircraft-flight-simulator/Core/CesiumJS
+
 ```
+
+## 📖 Usage
+
+First go to cesium ion (https://ion.cesium.com/tokens?page=1) and create a 'default token key' to place in main.js under Cesium.Ion.defaultAccessToken
+
+```bash
+# Run the application
+python .\main.py
+
+```
+
+Once the program is running, open a browser to http://localhost:8000. Then, open example.slx and run. The browser should update live as the MATLAB flight model runs.
+
+## 🤝 Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-# MATLAB Framework Setup
-
-## 1. Open MATLAB
-
-Navigate to:
-
-```text
-AircraftDesign_Flightsim/MATLAB
-```
-
-## 2. Add Framework to MATLAB Path
-
-Run:
-
-```matlab
-addpath(genpath(pwd))
-savepath
-```
-
-## 3. Run Example Scripts
-
-Example scripts are located per-aircraft under `examples/`:
-
-```text
-examples/Cessna172/
-examples/F16/
-examples/Boein737/
-examples/Quad/
-```
-
-Example:
-
-```matlab
-run('examples/Cessna172/cessna.m')
-run('examples/F16/brand4pointtrim.m')
-```
-
----
-
-# CesiumJS Visualization Setup
-
-# Windows
-
-## 1. Navigate to CesiumJS Folder
-
-```powershell
-cd "C:\Path\To\AircraftDesign_Flightsim\CesiumJS"
-```
-
-## 2. Create Python Virtual Environment
-
-```powershell
-python -m venv venv
-```
-
-## 3. Activate Virtual Environment
-
-```powershell
-venv\Scripts\activate
-```
-
-## 4. Install Required Package
-
-```powershell
-pip install websockets
-```
-
-## 5. Run Web Server
-
-```powershell
-python main.py
-```
-
-Expected output:
-
-```text
-Running Webserver at http://localhost:8000
-```
-
-## 6. Open Browser
-
-Open:
-
-```text
-http://localhost:8000
-```
-
----
-
-# Linux
-
-## 1. Navigate to CesiumJS Folder
-
-```bash
-cd ~/AircraftDesign_Flightsim/CesiumJS
-```
-
-## 2. Create Python Virtual Environment
-
-```bash
-python3 -m venv venv
-```
-
-## 3. Activate Virtual Environment
-
-```bash
-source venv/bin/activate
-```
-
-## 4. Install Required Package
-
-```bash
-pip install websockets
-```
-
-## 5. Run Web Server
-
-```bash
-python3 main.py
-```
-
-## 6. Open Browser
-
-Open:
-
-```text
-http://localhost:8000
-```
-
----
-
-# Joystick Interface Setup
-
-# Windows
-
-## 1. Navigate to UDP Joystick Folder
-
-```powershell
-cd "C:\Path\To\UDP_Joystick_Stuff"
-```
-
-## 2. Create Virtual Environment
-
-```powershell
-python -m venv venv
-```
-
-## 3. Activate Environment
-
-```powershell
-venv\Scripts\activate
-```
-
-## 4. Install Packages
-
-```powershell
-pip install pygame websockets
-```
-
-## 5. Run Joystick Sender
-
-```powershell
-python Send_FDM.py
-```
-
----
-
-# Linux
-
-## 1. Navigate to UDP Joystick Folder
-
-```bash
-cd ~/UDP_Joystick_Stuff
-```
-
-## 2. Create Virtual Environment
-
-```bash
-python3 -m venv venv
-```
-
-## 3. Activate Environment
-
-```bash
-source venv/bin/activate
-```
-
-## 4. Install Packages
-
-```bash
-pip install pygame evdev
-```
-
-## 5. Check Joystick Devices
-
-```bash
-ls -l /dev/input/js*
-```
-
-Example:
-
-```text
-/dev/input/js0
-/dev/input/js1
-/dev/input/js2
-```
-
-## 6. Run UDP Sender
-
-```bash
-python3 Send_FDM_Torg.py
-```
-
----
-
-# Real-Time Simulation Workflow
-
-Typical workflow:
-
-1. Run MATLAB/Simulink aircraft model
-2. Run joystick UDP sender
-3. Run CesiumJS WebSocket server
-4. Open browser visualization
-5. Aircraft state is streamed in real time
-
-Data pipeline:
-
-```text
-MATLAB/Simulink
-        ↓
-      UDP
-        ↓
-Python UDP Interface
-        ↓
-   WebSocket
-        ↓
-    CesiumJS
-```
-
----
-
-# Example Supported Aircraft
-
-The framework has been tested using:
-
-- Cessna 172
-- F-16
-- Boeing 737 (DATCOM-based)
-- Quadrotor
-
-The same framework architecture is reused across all aircraft configurations without modifying the aircraft-level equations of motion.
-
----
-
-# Citation
-
-```text
-Naman Kumar Shetty
-Aircraft-Agnostic Modular Framework (AAMF)
-Virginia Polytechnic Institute and State University
-Master of Science Report
-2026
-```
-
----
-
-# Author
-
-Developed by:
-
-**Naman Kumar Shetty**
-Master of Science in Aerospace Engineering
-Virginia Polytechnic Institute and State University
-Blacksburg, Virginia
-
-GitHub Repository:
-
-https://github.com/Idopt-Lab/aircraft-flight-simulator
+Made with ❤️ by [Kloudbean](https://www.kloudbean.com)
