@@ -494,10 +494,11 @@ classdef Aircraft < handle
                 cg_frame.set_position_in_parent(cg);
             end
 
-            if obj.has_frame(obj.gravity_frame_name)
-                obj.update_frame_position(obj.gravity_frame_name, cg);
-            end
-
+            % gravity_cg is deliberately not touched here: compute_total_loads_about
+            % below triggers ensure_gravity_source, which re-parents and
+            % repositions it from the same cg value, making a separate
+            % update here redundant (and, unlike ensure_gravity_source, it
+            % would not have re-parented it either).
             [F_total, M_total, fuel_flow, fm_total, u_applied] = obj.compute_total_loads_about(x,u,"cg");
         end
 
@@ -662,27 +663,27 @@ classdef Aircraft < handle
 
             mp = obj.mission_planner_obj;
         end
-          function [F_total,M_total,fuel_flow,sources,u_applied] = compute_loads_by_solver(obj,x,u,solver_class,target_frame,ref_frame)
-        if nargin < 2 || isempty(x), x = obj.state.get_full_state(); end
-        if nargin < 5 || isempty(target_frame), target_frame = obj.get_body_frame(); end
-        if nargin < 6 || isempty(ref_frame), ref_frame = obj.get_reference_frame(); end
-        if ischar(target_frame) || isstring(target_frame), target_frame = obj.get_frame(target_frame); end
-        if ischar(ref_frame) || isstring(ref_frame), ref_frame = obj.get_frame(ref_frame); end
-        obj.ensure_gravity_source(x);
-        u_applied = obj.resolve_controls_for_loads(u);
-        sources = obj.find_load_solvers(obj.root_component,char(solver_class));
-        F_total = zeros(3,1);
-        M_total = zeros(3,1);
-        fuel_flow = 0;
-        for k = 1:numel(sources)
-            src = sources{k};
-            [Fk,Mk] = src.compute_loads_in_frame(x,u_applied,target_frame,ref_frame);
-            F_total = F_total+Fk(:);
-            M_total = M_total+Mk(:);
-            if isprop(src,"fuel_flow"), fuel_flow = fuel_flow+src.fuel_flow; end
+        function [F_total,M_total,fuel_flow,sources,u_applied] = compute_loads_by_solver(obj,x,u,solver_class,target_frame,ref_frame)
+            if nargin < 2 || isempty(x), x = obj.state.get_full_state(); end
+            if nargin < 5 || isempty(target_frame), target_frame = obj.get_body_frame(); end
+            if nargin < 6 || isempty(ref_frame), ref_frame = obj.get_reference_frame(); end
+            if ischar(target_frame) || isstring(target_frame), target_frame = obj.get_frame(target_frame); end
+            if ischar(ref_frame) || isstring(ref_frame), ref_frame = obj.get_frame(ref_frame); end
+            obj.ensure_gravity_source(x);
+            u_applied = obj.resolve_controls_for_loads(u);
+            sources = obj.find_load_solvers(obj.root_component,char(solver_class));
+            F_total = zeros(3,1);
+            M_total = zeros(3,1);
+            fuel_flow = 0;
+            for k = 1:numel(sources)
+                src = sources{k};
+                [Fk,Mk] = src.compute_loads_in_frame(x,u_applied,target_frame,ref_frame);
+                F_total = F_total+Fk(:);
+                M_total = M_total+Mk(:);
+                if isprop(src,"fuel_flow"), fuel_flow = fuel_flow+src.fuel_flow; end
+            end
+            obj.last_propulsion_report = obj.get_propulsion_operating_report();
         end
-        obj.last_propulsion_report = obj.get_propulsion_operating_report();
-    end
     end
 
 

@@ -650,24 +650,24 @@ classdef ReferenceFrame < handle
             end
         end
     end
-   methods (Static)
+    methods (Static)
 
-    function C = ned_to_body_dcm(x)
+        function C = ned_to_body_dcm(x)
 
-        x=x(:);
+            x=x(:);
 
-        if numel(x)<9
-            error('ReferenceFrame:InvalidState', 'State must contain Euler angles x(7:9).');
+            if numel(x)<9
+                error('ReferenceFrame:InvalidState', 'State must contain Euler angles x(7:9).');
+            end
+
+            phi=x(7); theta=x(8); psi=x(9);
+
+            cp=cos(phi); sp=sin(phi);
+            ct=cos(theta); st=sin(theta);
+            cs=cos(psi); ss=sin(psi);
+
+            C=[ct*cs,ct*ss,-st; sp*st*cs-cp*ss,sp*st*ss+cp*cs,sp*ct; cp*st*cs+sp*ss,cp*st*ss-sp*cs,cp*ct];
         end
 
-        phi=x(7); theta=x(8); psi=x(9);
-
-        cp=cos(phi); sp=sin(phi);
-        ct=cos(theta); st=sin(theta);
-        cs=cos(psi); ss=sin(psi);
-
-        C=[ct*cs,ct*ss,-st; sp*st*cs-cp*ss,sp*st*ss+cp*cs,sp*ct; cp*st*cs+sp*ss,cp*st*ss-sp*cs,cp*ct];
     end
-
-end 
 end

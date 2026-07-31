@@ -97,12 +97,21 @@ classdef AfterburningTurbojet < PropulsiveElement
                     tsfc=tsfc_dry;
                     command=obj.idle_thrust_fraction;
             end
-            valid=isfinite(lapse_raw) && lapse_raw>=0 && Mach<=obj.maximum_mach;
+            % Mach exceeding maximum_mach is flagged via engine_valid
+            % (surfaced through get_operating_status) but must not force a
+            % discontinuous jump to zero thrust: nothing in the lapse
+            % formula itself decays toward zero as Mach approaches
+            % maximum_mach, so hard-zeroing here produced a thrust cliff
+            % exactly where a max-speed search would naturally probe. Only
+            % a numerically broken lapse (NaN/Inf or negative) should
+            % actually zero the output.
+            lapse_numerically_valid=isfinite(lapse_raw) && lapse_raw>=0;
+            valid=lapse_numerically_valid && Mach<=obj.maximum_mach;
             gross_thrust_N=max(rated_thrust_N*lapse_raw,0)*command;
             thrust_N=gross_thrust_N*obj.installation_loss_factor*obj.engine_health_factor;
             fuel_flow_kgps=tsfc*gross_thrust_N;
             if mode=="idle", fuel_flow_kgps=max(fuel_flow_kgps,obj.idle_fuel_flow_kgps); end
-            if ~valid
+            if ~lapse_numerically_valid
                 thrust_N=0;
                 if mode~="idle", fuel_flow_kgps=0; end
             end

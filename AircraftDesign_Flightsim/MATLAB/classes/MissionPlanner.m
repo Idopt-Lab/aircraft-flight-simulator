@@ -627,7 +627,7 @@ classdef MissionPlanner < handle
             n_pe = numel(ac.propulsive_elements);
             u = zeros(n_cs+n_pe,1);
             for i = 1:n_cs
-                u(i) = ac.control_surfaces(i). saturate_deflection(0);
+                u(i) = ac.control_surfaces(i).saturate_deflection(0);
             end
             if n_pe > 0
                 u(n_cs+1:end) = 0.70;
@@ -639,7 +639,6 @@ classdef MissionPlanner < handle
             t = obj.mission.time_vector(:);
             altitude = obj.mission.altitude_profile(:);
 
-            x(3,:) = -altitude.';
             velocity_ned = zeros(3,numel(t));
             for k = 1:numel(t)
                 C_ned_to_body = FlightEnvironment.dcm_ned_to_body(x(7:9,k));

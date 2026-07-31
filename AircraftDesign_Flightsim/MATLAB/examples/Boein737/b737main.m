@@ -167,42 +167,38 @@ condition = struct();
 condition.altitude_m = alt_trim_m;
 condition.mach = mach_trim;
 
-trim_cfg = struct();
-trim_cfg.variables = ["alpha","elevator","throttle"];
-trim_cfg.residuals = ["Fx","Fz","My"];
+perf = ac.get_performance();
 
-trim_cfg.initial_guess = [deg2rad(1); deg2rad(-3); 0.35];
+% Same "level" formulation as the F-16 baseline trim: alpha/control_pitch/
+% throttle solved against the exact EOM equality constraints. "throttle"
+% is a single symmetric variable that PerformanceAnalysis broadcasts to
+% every propulsive element (both CFM56s here) via its generic "throttle"
+% key, matching the old symmetric-throttle GenericTrimSolver behavior.
+level_spec = struct( ...
+    'mode',"level", ...
+    'variables',["alpha","control_pitch","throttle"], ...
+    'initial_guess',[deg2rad(1);deg2rad(-3);0.35], ...
+    'lb',[deg2rad(-5);deg2rad(-25);0], ...
+    'ub',[deg2rad(15);deg2rad(25);1], ...
+    'fixed',struct('beta',0,'phi',0,'psi',0,'gamma',0, ...
+        'control_roll',0,'control_yaw',0), ...
+    'reference_frame_name',"cg", ...
+    'residual_scale',[ac.g;ac.g;1]);
 
-trim_cfg.lb = [deg2rad(-5); deg2rad(-25); 0.0];
-trim_cfg.ub = [deg2rad(15); deg2rad(25); 1.0];
-
-trim_cfg.weights = [1;1;1];
-
-trim_cfg.fixed = struct();
-trim_cfg.fixed.beta = 0;
-trim_cfg.fixed.phi = 0;
-trim_cfg.fixed.psi = 0;
-trim_cfg.fixed.gamma = 0;
-trim_cfg.fixed.aileron = 0;
-trim_cfg.fixed.rudder = 0;
-trim_cfg.fixed.p = 0;
-trim_cfg.fixed.q = 0;
-trim_cfg.fixed.r = 0;
-
-trim_cfg.reference_frame_name = "cg";
-
-solver_cfg = struct();
-solver_cfg.residual_tolerance = 1e-5;
-solver_cfg.fmincon_options = optimoptions("fmincon", ...
-    "Algorithm","sqp", ...
-    "Display","iter", ...
-    "MaxIterations",5000, ...
-    "MaxFunctionEvaluations",50000, ...
-    "OptimalityTolerance",1e-10, ...
-    "StepTolerance",1e-10, ...
-    "ConstraintTolerance",1e-10, ...
-    "FunctionTolerance",1e-10, ...
-    "FiniteDifferenceStepSize",1e-8);
+solver_cfg = struct( ...
+    'residual_tolerance',1e-5, ...
+    'inequality_tolerance',1e-6, ...
+    'equality_tolerance',1e-5, ...
+    'optimality_tolerance',1e-5, ...
+    'fmincon_options',optimoptions("fmincon", ...
+        "Algorithm","sqp", ...
+        "Display","iter", ...
+        "MaxIterations",5000, ...
+        "MaxFunctionEvaluations",50000, ...
+        "OptimalityTolerance",1e-10, ...
+        "ConstraintTolerance",1e-10, ...
+        "StepTolerance",1e-10, ...
+        "FiniteDifferenceStepSize",1e-8));
 
 %% Run trim
 
@@ -211,19 +207,12 @@ fprintf("Altitude : %.1f m\n",alt_trim_m);
 fprintf("Mach     : %.3f\n",mach_trim);
 fprintf("V        : %.3f m/s / %.3f kt\n",V_trim,V_trim*1.94384449);
 
-solver = ac.get_trim_solver();
-
-[x_trim,u_trim,converged,info] = solver.solve_trim(condition,trim_cfg,solver_cfg); %#ok<NASGU>
+[x_trim,u_trim,converged,trim_info] = perf.solve_trim(condition,level_spec,solver_cfg);
 
 if converged
     fprintf("\n=== TRIM CONVERGED ===\n");
 else
     fprintf("\n=== TRIM NOT CONVERGED: using returned best solution ===\n");
-end
-
-try
-    solver.print_summary();
-catch
 end
 
 %% Trim verification
@@ -303,11 +292,9 @@ fprintf("Total             F=[% .3e % .3e % .3e] M=[% .3e % .3e % .3e]\n",F_trim
 
 fprintf("\n=== RUNNING B737 PERFORMANCE ANALYSIS ===\n");
 
-perf = ac.get_performance();
-
 perf_cfg = struct('available_throttle',1, 'propulsion_type',"thrust", 'reference_frame_name',"cg");
 
-perf_point = perf.evaluate_trim_point(x_trim,u_trim,condition,perf_cfg);
+perf_point = perf.evaluate_trim_point(x_trim,u_trim,condition,perf_cfg,trim_info.extras);
 perf_point.trim_converged = converged;
 
 perf.print_point(perf_point);

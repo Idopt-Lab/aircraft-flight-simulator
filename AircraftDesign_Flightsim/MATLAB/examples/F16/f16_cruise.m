@@ -184,45 +184,48 @@ fprintf("Mach     : %.4f\n",mach);
 fprintf("Engine   : dry\n");
 
 %% Trim variables and equations
+% Same "level" formulation as brand4pointtrim.m's F-16 baseline trim:
+% alpha/stabilator/throttle solved against the exact EOM equality
+% constraints via PerformanceAnalysis (GenericTrimSolver's weighted-
+% penalty formulation is no longer used by any example script).
 
-trim_cfg=struct();
+level_spec=struct();
 
-trim_cfg.variables=["alpha"; "stabilator"; "throttle"];
+level_spec.mode="level";
 
-trim_cfg.residuals=["Fx"; "Fz"; "My"];
+level_spec.variables=["alpha"; "stabilator"; "throttle"];
 
-trim_cfg.initial_guess=[deg2rad(5); deg2rad(1.5); 0.45];
+level_spec.initial_guess=[deg2rad(5); deg2rad(1.5); 0.45];
 
-trim_cfg.lb=[deg2rad(-5); deg2rad(-25); 0];
+level_spec.lb=[deg2rad(-5); deg2rad(-25); 0];
 
-trim_cfg.ub=[deg2rad(20); deg2rad(25); 1];
-
-trim_cfg.weights=[1; 1; 1];
+level_spec.ub=[deg2rad(20); deg2rad(25); 1];
 
 %% Fixed steady-level values
 
-trim_cfg.fixed=struct();
+level_spec.fixed=struct();
 
-trim_cfg.fixed.beta=0;
-trim_cfg.fixed.gamma=0;
+level_spec.fixed.beta=0;
+level_spec.fixed.gamma=0;
 
-trim_cfg.fixed.phi=0;
-trim_cfg.fixed.psi=0;
+level_spec.fixed.phi=0;
+level_spec.fixed.psi=0;
 
-trim_cfg.fixed.p=0;
-trim_cfg.fixed.q=0;
-trim_cfg.fixed.r=0;
+level_spec.fixed.control_roll=0;
+level_spec.fixed.control_yaw=0;
 
-trim_cfg.fixed.aileron=0;
-trim_cfg.fixed.rudder=0;
+level_spec.reference_frame_name="cg";
 
-trim_cfg.reference_frame_name="cg";
+level_spec.residual_scale=[ac.g;ac.g;1];
 
 %% Solver settings
 
 solver_cfg=struct();
 
 solver_cfg.residual_tolerance=1e-5;
+solver_cfg.inequality_tolerance=1e-6;
+solver_cfg.equality_tolerance=1e-5;
+solver_cfg.optimality_tolerance=1e-5;
 
 solver_cfg.fmincon_options=optimoptions( ...
     "fmincon", ...
@@ -239,11 +242,11 @@ solver_cfg.fmincon_options=optimoptions( ...
 
 %% Solve steady-level trim
 
-trim_solver=GenericTrimSolver(ac);
+performance=ac.get_performance();
 
 fprintf("\n=== SOLVING STEADY LEVEL TRIM ===\n");
 
-[x_trim,u_trim,trim_converged,trim_info]= trim_solver.solve_trim(condition, trim_cfg, solver_cfg);
+[x_trim,u_trim,trim_converged,trim_info]= performance.solve_trim(condition, level_spec, solver_cfg);
 
 %% Extract trim variables
 
@@ -274,8 +277,8 @@ trim_mach= trim_velocity_mps/trim_speed_of_sound_mps;
 
 %% Extract force and moment residuals
 
-trim_force_N=trim_info.loads.F_total;
-trim_moment_Nm=trim_info.loads.M_total;
+trim_force_N=trim_info.loads.F_total_body_N;
+trim_moment_Nm=trim_info.loads.M_total_cg_body_Nm;
 
 Fx_N=trim_force_N(1);
 Fy_N=trim_force_N(2);
@@ -285,11 +288,9 @@ Mx_Nm=trim_moment_Nm(1);
 My_Nm=trim_moment_Nm(2);
 Mz_Nm=trim_moment_Nm(3);
 
-normalized_residual=trim_info.residual;
-
-Fx_normalized=normalized_residual(1);
-Fz_normalized=normalized_residual(2);
-My_normalized=normalized_residual(3);
+Fx_normalized=Fx_N/weight_N;
+Fz_normalized=Fz_N/weight_N;
+My_normalized=My_Nm/(weight_N*c);
 
 %% Display trim solution
 

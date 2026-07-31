@@ -49,7 +49,7 @@ classdef PropulsionLoadSolver < LoadSolver
         end
 
         function status = get_operating_status(obj)
-            if isempty(obj.last_operating_status)
+            if ~isstruct(obj.last_operating_status) || isempty(fieldnames(obj.last_operating_status))
                 status = obj.prop_model.get_operating_status();
             else
                 status = obj.last_operating_status;

@@ -188,9 +188,9 @@ else
     ac.add_frame("cg", ac.body_frame_name, cg_body, @(x) eye(3));
 end
 
-if ac.has_frame("gravity_cg")
-    ac.update_frame_position("gravity_cg", cg_body);
-end
+% gravity_cg is deliberately not touched here: compute_total_loads below
+% triggers ensure_gravity_source, which re-parents and repositions it
+% from the same cg_body value, making a separate update here redundant.
 
 %% Total loads about CG
 

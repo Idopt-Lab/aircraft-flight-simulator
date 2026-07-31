@@ -4,8 +4,12 @@ classdef GenericTrimSolver < handle
 %
 % A second, structurally different trim solver from PerformanceAnalysis
 % (weighted-penalty least squares here vs. exact EOM equality constraint
-% there); used only by f16_cruise.m. Do not assume a residual_tolerance
-% tuned here means the same thing there (different residual units/norm).
+% there). No example script currently uses this solver -- every driver
+% (F-16, Boeing 737, Cessna 172) trims through PerformanceAnalysis, whose
+% hard equality-constraint formulation is the framework's one intended
+% trim method. Kept available via Aircraft.get_trim_solver() as a working
+% alternative formulation. Do not assume a residual_tolerance tuned here
+% means the same thing there (different residual units/norm).
 %
 % This solver does NOT decide whether trim is symmetric, longitudinal,
 % full 6-DOF, climb, descent, cruise, etc.
