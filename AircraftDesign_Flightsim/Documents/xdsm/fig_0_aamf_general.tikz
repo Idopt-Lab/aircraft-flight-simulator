@@ -1,0 +1,451 @@
+
+%%% Preamble Requirements %%%
+% \usepackage{geometry}
+% \usepackage{amsfonts}
+% \usepackage{amsmath}
+% \usepackage{amssymb}
+% \usepackage{tikz}
+
+% Optional packages such as sfmath set through python interface
+% \usepackage{}
+
+% \usetikzlibrary{arrows,chains,positioning,scopes,shapes.geometric,shapes.misc,shadows}
+
+%%% End Preamble Requirements %%%
+
+\input{"C:/Users/krish/AppData/Local/Programs/Python/Python310/lib/site-packages/pyxdsm/diagram_styles"}
+\begin{tikzpicture}
+
+\matrix[MatrixSetup]{
+%Row 0
+\node [DataIO] (output_deck) {$\begin{array}{c}\text{geometry, mass, limits,} \\ \text{published or test data}\end{array}$};&
+\node [DataIO] (output_aeromod) {$\begin{array}{c}\text{coefficient tables,} \\ \text{DATCOM, or callback}\end{array}$};&
+\node [DataIO] (output_propmod) {$\begin{array}{c}\text{engine deck, motor} \\ \text{or propeller ratings}\end{array}$};&
+&
+\node [DataIO] (output_trim) {$\begin{array}{c}\text{condition, variables,} \\ \text{bounds, tolerance}\end{array}$};&
+\node [DataIO] (output_loads) {$\begin{array}{c}\text{ISA atmosphere} \\ \texttt{isa1976}\end{array}$};&
+&
+&
+\node [DataIO] (output_field) {$\begin{array}{c}\text{runway}, h, \mu, \\ \Delta t_{field}\ \text{(own)}\end{array}$};&
+\node [DataIO] (output_mission) {$\text{segment definitions}$};&
+&
+\node [DataIO] (output_sim6) {$\begin{array}{c}t_{end},\ \Delta t_{sim} \\ \text{(Simulink only)}\end{array}$};&
+&
+&
+&
+\\
+%Row 1
+\node [Function] (deck) {$\begin{array}{c}\text{1: Aircraft data deck} \\ \textit{per aircraft}\end{array}$};&
+\node [DataInter] (deck-aeromod) {$S,b,\bar c,\ \text{polars}$};&
+\node [DataInter] (deck-propmod) {$\text{ratings, installation}$};&
+\node [DataInter] (deck-cfg) {$\begin{array}{c}\text{components, stations,} \\ \text{surface limits}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 2
+&
+\node [Group] (aeromod) {$\begin{array}{c}\text{2: Aerodynamics model} \\ \texttt{Aerodynamics}\ \text{subclass} \\ \textit{per aircraft}\end{array}$};&
+&
+\node [DataInter] (aeromod-cfg) {$\texttt{Aerodynamics}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 3
+&
+&
+\node [Group,stack] (propmod) {$\begin{array}{c}\text{3: Propulsion models} \\ \texttt{PropulsiveElement}\ \text{subclass} \\ \textit{per aircraft}\end{array}$};&
+\node [DataInter] (propmod-cfg) {$\texttt{PropulsiveElement}\ \text{objects}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 4
+&
+&
+&
+\node [Function] (cfg) {$\begin{array}{c}\text{4: Aircraft assembly} \\ \texttt{AircraftConfigurator}\end{array}$};&
+\node [DataInter] (cfg-trim) {$m,\ \mathbf{r}_{cg},\ \mathbf{I}$};&
+\node [DataInter] (cfg-loads) {$\begin{array}{c}\texttt{ac}\text{: frames,} \\ \text{components, solvers}\end{array}$};&
+&
+&
+&
+&
+\node [DataInter] (cfg-xport) {$\texttt{ac},\ n_{cs},n_{pe}$};&
+&
+&
+&
+&
+\\
+%Row 5
+&
+&
+&
+&
+\node [MDA] (trim) {$\begin{array}{c}\text{5, 7: Trim solver} \\ \texttt{fmincon} \text{ on } \mathcal{R}\end{array}$};&
+\node [DataInter] (trim-loads) {$\mathbf{x}^{(k)},\ \mathbf{u}^{(k)}$};&
+\node [DataInter] (trim-perfpt) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-stab) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-field) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-mission) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-xport) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+&
+&
+&
+&
+\node [DataIO] (right_output_trim) {$\mathbf{x}^*,\ \mathbf{u}^*$};\\
+%Row 6
+&
+&
+&
+&
+\node [DataInter] (loads-trim) {$\mathcal{R}$};&
+\node [Group] (loads) {$\begin{array}{c}\text{6: Force and moment} \\ \text{model, shared}\end{array}$};&
+\node [DataInter] (loads-perfpt) {$\mathbf{F},\mathbf{M},\ \dot m_{fuel}$};&
+\node [DataInter] (loads-stab) {$\mathbf{F},\mathbf{M}$};&
+\node [DataInter] (loads-field) {$\begin{array}{c}T\ \text{(Propulsion solver)}, \\ C_L,C_D\ \text{(Aero solver)}\end{array}$};&
+&
+&
+&
+\node [DataInter] (loads-sfun) {$\mathbf{F},\mathbf{M}$};&
+&
+&
+\\
+%Row 7
+&
+&
+&
+&
+&
+\node [DataInter] (perfpt-loads) {$\begin{array}{c}\mathbf{x}^*,\mathbf{u}^*\ \text{once} \\ \text{(no iteration)}\end{array}$};&
+\node [Function] (perfpt) {$\begin{array}{c}\text{8: Performance point} \\ \texttt{evaluate\_trim\_point}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_perfpt) {$L/D,\ P,\ \text{margins}$};\\
+%Row 8
+&
+&
+&
+&
+&
+\node [DataInter] (stab-loads) {$\begin{array}{c}\mathbf{x}\pm\delta,\ \mathbf{u}\pm\delta \\ \text{FD sweep}\end{array}$};&
+&
+\node [Function] (stab) {$\begin{array}{c}\text{9: Stability} \\ \text{FD sweep} \rightarrow \mathbf{A},\mathbf{B},\ \text{eig}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_stab) {$\mathbf{A},\mathbf{B},\ \lambda_i,\ \text{modes}$};\\
+%Row 9
+&
+&
+&
+&
+&
+\node [DataInter] (field-loads) {$\begin{array}{c}\mathbf{x}(t),\ \Delta t = 0.05\ \text{s} \\ \text{own ground EOM}\end{array}$};&
+&
+&
+\node [ImplicitFunction] (field) {$\begin{array}{c}\text{10: Takeoff / landing} \\ \text{time march} + V_1\end{array}$};&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_field) {$s_{TO},\ s_{LDG},\ V_1$};\\
+%Row 10
+&
+&
+&
+&
+\node [DataInter] (mission-trim) {$\begin{array}{c}\text{node condition} \\ \text{per segment}\end{array}$};&
+&
+&
+&
+&
+\node [MDA] (mission) {$\begin{array}{c}\text{11: Mission planner} \\ \text{segment, node, trim}\end{array}$};&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_mission) {$\text{fuel, time, range}$};\\
+%Row 11
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (xport) {$\begin{array}{c}\text{12: Simulink export} \\ \text{base workspace}\end{array}$};&
+\node [DataInter] (xport-sim6) {$\text{initial state}$};&
+\node [DataInter] (xport-sfun) {$\texttt{ac},\ n_{total},\ \mathbf{u}(t)$};&
+&
+&
+\\
+%Row 12
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [MDA] (sim6) {$\begin{array}{c}\text{13, 15: 6-DOF} \\ \text{time integration}\end{array}$};&
+\node [DataInter] (sim6-sfun) {$\mathbf{x}(t)$};&
+\node [DataInter] (sim6-viz) {$\mathbf{r}_{NED},\ \phi,\theta,\psi$};&
+&
+\\
+%Row 13
+&
+&
+&
+&
+&
+\node [DataInter] (sfun-loads) {$\mathbf{x},\mathbf{u}\ \text{per step}$};&
+&
+&
+&
+&
+&
+\node [DataInter] (sfun-sim6) {$\mathbf{F},\mathbf{M},m,\mathbf{I}$};&
+\node [Function] (sfun) {$\begin{array}{c}\text{14: S-function} \\ \texttt{aircraft\_sfunc}\end{array}$};&
+&
+&
+\\
+%Row 14
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (viz) {$\begin{array}{c}\text{16: net\_fdm, UDP,} \\ \text{CesiumJS}\end{array}$};&
+&
+\node [DataIO] (right_output_viz) {$\text{live 3-D view}$};\\
+%Row 15
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+};
+
+% XDSM process chains
+{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (deck);
+\chainin (aeromod) [join=by ProcessHVA];
+\chainin (cfg) [join=by ProcessHVA];
+\chainin (trim) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (deck);
+\chainin (propmod) [join=by ProcessHVA];
+\chainin (cfg) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (trim);
+\chainin (loads) [join=by ProcessHVA];
+\chainin (trim) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (trim);
+\chainin (perfpt) [join=by ProcessHVA];
+\chainin (stab) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (stab);
+\chainin (loads) [join=by ProcessHVA];
+\chainin (stab) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (stab);
+\chainin (field) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (field);
+\chainin (loads) [join=by ProcessHVA];
+\chainin (field) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (field);
+\chainin (mission) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (mission);
+\chainin (trim) [join=by ProcessHVA];
+\chainin (mission) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (mission);
+\chainin (xport) [join=by ProcessHVA];
+\chainin (sim6) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (sim6);
+\chainin (sfun) [join=by ProcessHVA];
+\chainin (sim6) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (sfun);
+\chainin (loads) [join=by ProcessHVA];
+\chainin (sfun) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (sim6);
+\chainin (viz) [join=by ProcessHVA];
+\end{pgfonlayer}
+}
+
+\begin{pgfonlayer}{data}
+\path
+% Horizontal edges
+(deck) edge [DataLine] (deck-aeromod)
+(deck) edge [DataLine] (deck-propmod)
+(deck) edge [DataLine] (deck-cfg)
+(aeromod) edge [DataLine] (aeromod-cfg)
+(propmod) edge [DataLine] (propmod-cfg)
+(cfg) edge [DataLine] (cfg-trim)
+(cfg) edge [DataLine] (cfg-loads)
+(cfg) edge [DataLine] (cfg-xport)
+(trim) edge [DataLine] (trim-loads)
+(loads) edge [DataLine] (loads-trim)
+(trim) edge [DataLine] (trim-perfpt)
+(trim) edge [DataLine] (trim-stab)
+(trim) edge [DataLine] (trim-field)
+(trim) edge [DataLine] (trim-mission)
+(trim) edge [DataLine] (trim-xport)
+(loads) edge [DataLine] (loads-perfpt)
+(perfpt) edge [DataLine] (perfpt-loads)
+(loads) edge [DataLine] (loads-stab)
+(stab) edge [DataLine] (stab-loads)
+(loads) edge [DataLine] (loads-field)
+(field) edge [DataLine] (field-loads)
+(mission) edge [DataLine] (mission-trim)
+(xport) edge [DataLine] (xport-sim6)
+(xport) edge [DataLine] (xport-sfun)
+(sim6) edge [DataLine] (sim6-sfun)
+(sfun) edge [DataLine] (sfun-sim6)
+(loads) edge [DataLine] (loads-sfun)
+(sfun) edge [DataLine] (sfun-loads)
+(sim6) edge [DataLine] (sim6-viz)
+(trim) edge [DataLine] (right_output_trim)
+(perfpt) edge [DataLine] (right_output_perfpt)
+(stab) edge [DataLine] (right_output_stab)
+(field) edge [DataLine] (right_output_field)
+(mission) edge [DataLine] (right_output_mission)
+(viz) edge [DataLine] (right_output_viz)
+% Vertical edges
+(deck-aeromod) edge [DataLine] (aeromod)
+(deck-propmod) edge [DataLine] (propmod)
+(deck-cfg) edge [DataLine] (cfg)
+(aeromod-cfg) edge [DataLine] (cfg)
+(propmod-cfg) edge [DataLine] (cfg)
+(cfg-trim) edge [DataLine] (trim)
+(cfg-loads) edge [DataLine] (loads)
+(cfg-xport) edge [DataLine] (xport)
+(trim-loads) edge [DataLine] (loads)
+(loads-trim) edge [DataLine] (trim)
+(trim-perfpt) edge [DataLine] (perfpt)
+(trim-stab) edge [DataLine] (stab)
+(trim-field) edge [DataLine] (field)
+(trim-mission) edge [DataLine] (mission)
+(trim-xport) edge [DataLine] (xport)
+(loads-perfpt) edge [DataLine] (perfpt)
+(perfpt-loads) edge [DataLine] (loads)
+(loads-stab) edge [DataLine] (stab)
+(stab-loads) edge [DataLine] (loads)
+(loads-field) edge [DataLine] (field)
+(field-loads) edge [DataLine] (loads)
+(mission-trim) edge [DataLine] (trim)
+(xport-sim6) edge [DataLine] (sim6)
+(xport-sfun) edge [DataLine] (sfun)
+(sim6-sfun) edge [DataLine] (sfun)
+(sfun-sim6) edge [DataLine] (sim6)
+(loads-sfun) edge [DataLine] (sfun)
+(sfun-loads) edge [DataLine] (loads)
+(sim6-viz) edge [DataLine] (viz)
+(deck) edge [DataLine] (output_deck)
+(aeromod) edge [DataLine] (output_aeromod)
+(propmod) edge [DataLine] (output_propmod)
+(trim) edge [DataLine] (output_trim)
+(loads) edge [DataLine] (output_loads)
+(field) edge [DataLine] (output_field)
+(mission) edge [DataLine] (output_mission)
+(sim6) edge [DataLine] (output_sim6);
+\end{pgfonlayer}
+
+\end{tikzpicture}

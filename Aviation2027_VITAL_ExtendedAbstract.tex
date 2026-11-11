@@ -1,0 +1,489 @@
+%=========================================================================================
+% VITAL -- AIAA AVIATION 2027 extended abstract, Modeling and Simulation Technologies
+% AIAA conference template (new-aiaa.cls). Red \tbd{...} marks items still to be filled.
+%=========================================================================================
+\documentclass[conf]{new-aiaa}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\usepackage{longtable,tabularx}
+\usepackage{xcolor}
+\usepackage{pifont}
+\setlength\LTleft{0pt}
+
+\newcommand{\tbd}[1]{\textcolor{red}{[#1]}}
+\newcommand{\cmark}{\ding{51}}
+\newcommand{\xmark}{\ding{55}}
+\newcommand{\pmark}{$\sim$}
+\newcommand{\vect}[1]{\mathbf{#1}}
+
+\title{VITAL: An Aircraft-Agnostic Flight Simulation Framework for Certification-Oriented Analysis of Novel Aircraft}
+
+\author{Krish Bhatt\footnote{\tbd{Job title, Department, Address, AIAA Member Grade}.}
+  \tbd{and co-authors}}
+\affil{Virginia Tech, Blacksburg, Virginia, 24061}
+
+\begin{document}
+\maketitle
+
+%-----------------------------------------------------------------------------------------
+\begin{abstract}
+Certification of new aircraft, particularly electric and advanced air mobility designs,
+increasingly relies on analysis, yet these aircraft have no flight history from which a
+simulation can borrow confidence. A credible simulation must therefore represent the
+aircraft as it is built, component by component, and must handle the off-nominal cases on
+which certification depends, such as a failed motor or engine. Existing flight dynamics
+models describe an aircraft mainly through lumped properties and leave such cases to
+custom work. This paper presents VITAL (Virtually Integrated Test and Analysis Lab), a
+framework in which an aircraft is assembled from components, each placed on its own
+reference axis with its own mass and loads. Mass, center of gravity, and inertia are rolled
+up from the components for every configuration, including fuel states, dropped stores, and
+failed parts, and every force and moment is carried to the center of gravity by one tested
+rigid-body transfer. The aircraft is trimmed and linearized in MATLAB, and its modes are
+identified automatically; the trimmed state then initializes a Simulink simulation built on
+the Aerospace Blockset six-degree-of-freedom block, which runs in real time and is shown live
+in a three-dimensional viewer. VITAL is verified against the NASA Engineering and Safety
+Center six-degree-of-freedom check-cases using NASA's own comparison metric
+\tbd{headline result}.
+\end{abstract}
+
+%-----------------------------------------------------------------------------------------
+\section*{Nomenclature}
+{\renewcommand\arraystretch{1.0}
+\noindent\begin{longtable*}{@{}l @{\quad=\quad} l@{}}
+$\vect{A}, \vect{B}$ & state and control matrices of the linear model \\
+$\vect{C}_{ba}$ & rotation matrix from axis $a$ to axis $b$ \\
+$\vect{F}, \vect{M}$ & force, N, and moment, N$\cdot$m \\
+$\vect{f}$ & equations of motion, $\dot{\vect{x}} = \vect{f}(\vect{x}, \vect{u})$ \\
+$\vect{g}$ & gravitational acceleration, m/s$^2$ \\
+$\vect{I}_3$ & 3-by-3 identity matrix \\
+$\vect{J}$ & inertia tensor, kg$\cdot$m$^2$ \\
+$m$ & mass, kg \\
+$\vect{r}$ & position, m \\
+$\vect{u}$ & control vector \\
+$\vect{v}$ & velocity relative to the Earth, m/s \\
+$\vect{x}$ & state vector \\
+$\boldsymbol{\omega}$ & angular velocity, rad/s \\
+$\boldsymbol{\Omega}_E$ & Earth rotation rate vector, rad/s \\
+\multicolumn{2}{@{}l}{Subscripts}\\
+$b$ & body axes \\
+$cg$ & center of gravity \\
+$e$ & Earth-centered, Earth-fixed axes \\
+$i$ & component index \\
+\end{longtable*}}
+
+%=========================================================================================
+\section{Introduction}
+%=========================================================================================
+\lettrine{C}{ertification} is how a new aircraft earns permission to fly: the applicant shows
+the regulator, requirement by requirement, that the design is safe across its whole
+operating envelope. For small airplanes in the United States these requirements are 14 CFR
+Part 23, which since Amendment 23-64 states safety objectives in performance-based terms and
+lets the applicant propose the means of showing compliance~\cite{part23}. That flexibility
+opened the door to electric and hybrid propulsion, distributed propulsion, and the advanced
+and urban air mobility vehicles now entering certification. It also moved more of the burden
+onto analysis. Many requirements are about the airplane when something has gone wrong: climb
+and controllability with one engine inoperative, the minimum control speed with the critical
+engine failed, behavior after a control failure. For a conventional twin these cases are well
+understood from decades of similar aircraft. For an airplane with fourteen electric motors,
+wingtip cruise propellers, and blown high-lift surfaces, there is no such history, and the
+first credible look at those cases has to come from a model.
+
+That model has to be more than an aerodynamic database attached to a point mass. A failed
+wingtip motor changes the yawing moment through its exact position and thrust line; burning
+fuel or draining stored energy, dropping a store, or lowering the gear moves the center of
+gravity and changes the inertia; a single pilot command may drive many effectors through a
+mixer and actuators with their own limits. Certification-oriented analysis of a novel
+aircraft therefore needs an aircraft described at the level of its components, with the
+off-nominal configurations defined as precisely as the nominal one, and with analyses
+(trim, linearization, mode identification, simulation) that work on any such description.
+
+Widely used flight dynamics tools meet parts of this need (Table~\ref{tab:gap}).
+JSBSim~\cite{berndt2004jsbsim} is data-defined and mature: thrusters have individual positions
+and orientations, point masses and fuel tanks shift the center of gravity, the flight control
+system supports actuators and failures, and it computes linear state-space models. Its mass
+model, however, is an empty-aircraft inertia with point masses added, not a build-up from
+components; its trim routines act on the conventional pilot controls; and it does not
+identify the dynamic modes. YASim, the alternative flight model in FlightGear, infers
+aerodynamics from a simplified geometry tuned to match stated performance, and
+X-Plane~\cite{xplane} computes forces by blade-element theory over each surface but is closed
+and offers no trim or linear analysis; neither uses an oblate, rotating Earth. The MATLAB
+Aerospace Blockset and Toolbox~\cite{mathworks_asb} provide the six-degree-of-freedom
+equations, linearization, and flying-qualities criteria, but the aircraft's mass, inertia,
+and center of gravity are entered as given values rather than derived from its parts.
+Finally, credibility itself is rarely demonstrated in public. The NASA Engineering and Safety
+Center (NESC) published six-degree-of-freedom check-cases computed by seven simulation tools,
+including JSBSim~\cite{nesc2015,jackson2015}, but the results are anonymized and carry no
+acceptance criterion, so a new tool has no ready way to show where it stands among them.
+
+\begin{table}[hbt!]
+\caption{\label{tab:gap} Capabilities of flight simulation tools as described in their
+published documentation (\cmark\ supported, \pmark\ partial, \xmark\ not supported or not
+documented)}
+\centering
+\small
+\begin{tabular}{lcccccccccc}
+\hline\hline
+ & \parbox[c]{1.15cm}{\centering Parts on own axes} & \parbox[c]{1.15cm}{\centering Mass build-up from parts}
+ & \parbox[c]{1.3cm}{\centering Off-nominal config-urations} & \parbox[c]{1.15cm}{\centering Mixer and actuators}
+ & \parbox[c]{1.1cm}{\centering Trim incl. engine out} & \parbox[c]{1.2cm}{\centering Linear model and modes}
+ & \parbox[c]{1.2cm}{\centering Certifi-cation criteria} & \parbox[c]{1.0cm}{\centering Oblate, rotating Earth}
+ & \parbox[c]{1.0cm}{\centering NESC check-cases} & \parbox[c]{1.1cm}{\centering Real time, 3-D view} \\\hline
+JSBSim             & \pmark & \pmark & \pmark & \cmark & \pmark & \pmark & \xmark & \cmark & \cmark$^a$ & \cmark \\
+FlightGear YASim   & \pmark & \pmark & \pmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cmark \\
+X-Plane            & \cmark & \pmark & \pmark & \pmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cmark \\
+Aerospace Blockset & \pmark & \xmark & \xmark & \pmark & \cmark & \pmark & \cmark & \cmark & \xmark & \cmark \\\hline
+VITAL              & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark \\
+\hline\hline
+\end{tabular}
+
+\vspace{2pt}
+\parbox{0.95\textwidth}{\footnotesize $^a$JSBSim took part in the NESC study; the results are
+published anonymously. Partial entries: JSBSim places thrusters and point forces on their own
+axes but references aerodynamics to one point, adds point masses and tanks to an
+empty-aircraft inertia, supports engine cutoff and actuator failures without configuration
+definitions, and produces linear models without mode identification. \tbd{Confirm YASim and
+X-Plane entries against their documentation.}}
+\end{table}
+
+This paper presents VITAL (Virtually Integrated Test and Analysis Lab), a MATLAB and Simulink
+framework built around these needs. The question it addresses is whether a single,
+component-level description of an aircraft can support both certification-oriented analysis,
+including off-nominal cases, and real-time simulation, with its correctness demonstrated
+against public reference data rather than assumed. The contributions are a component-level,
+aircraft-agnostic model with mass properties and configurations derived from its parts;
+analyses that act on any such model, including trim with failed components and automatic
+mode identification; a real-time Simulink simulation and live visualization driven by the
+same model; and verification against the NESC check-cases reported in NASA's own metric.
+
+%=========================================================================================
+\section{Describing an Aircraft in VITAL}
+%=========================================================================================
+VITAL contains no code for any particular aircraft. An aircraft is a set of parts, each with
+an axis, a mass, and optionally a loads model, together with its control channels and a list
+of configurations. Everything that the analyses need is derived from this description, which
+is what makes the framework aircraft-agnostic. The examples below use a test vehicle modeled
+on the NASA X-57 Maxwell~\cite{x57fs,heeg2019}, built from published values where they exist
+and representative values elsewhere: 35 parts, two wingtip cruise propellers, twelve high-lift
+propellers, 20 control channels, and five configurations.
+
+\subsection{Parts on Their Own Axes}
+Each part sits on its own reference axis, defined by an origin and an orientation relative to
+its parent, so that the axes form a tree rooted at the body reference point. In the X-57
+vehicle, each half wing, each aileron and flap hinge line, each cruise nacelle, and each of the
+fourteen propeller hubs has its own axis; a propeller's thrust line is simply the
+$x$-direction of its hub axis. A loads model reports its force and moment on its own axis and
+about its own origin, and the framework carries every load to the body axes and the center of
+gravity:
+\begin{equation}
+\label{eq:loads}
+\vect{F}_b = \sum_i \vect{C}_{b a_i}\,\vect{F}_i, \qquad
+\vect{M}_{cg} = \sum_i \left[\vect{C}_{b a_i}\,\vect{M}_i
+  + \left(\vect{r}_i - \vect{r}_{cg}\right) \times \vect{C}_{b a_i}\,\vect{F}_i\right],
+\end{equation}
+where $\vect{C}_{ba_i}$ is composed along the axis tree and $\vect{r}_i$ is the origin of axis
+$a_i$ in body coordinates. A canted motor, an aerodynamic model referenced to a different
+point, or a moved center of gravity is a change of data. The same transfer is used by every
+analysis and by the simulation.
+
+\subsection{Mass Properties and Configurations}
+Each part carries only its own mass, center of gravity, and inertia. For a given
+configuration, the framework combines the parts that are present:
+\begin{equation}
+\label{eq:mass}
+m = \sum_i m_i, \qquad
+\vect{r}_{cg} = \frac{1}{m}\sum_i m_i \vect{r}_i, \qquad
+\vect{J}_{cg} = \sum_i \left[\vect{C}_{b a_i} \vect{J}_i \vect{C}_{b a_i}^{T}
+  + m_i \left(\vect{d}_i^T\vect{d}_i\,\vect{I}_3 - \vect{d}_i\vect{d}_i^T\right)\right],
+\end{equation}
+with $\vect{d}_i = \vect{r}_i - \vect{r}_{cg}$. A configuration states which options are
+chosen (gear up or down), how full each tank is, which stores have been released, and which
+parts have failed. A failed part keeps its mass but produces no loads, which is the physical
+meaning of an inoperative engine, as opposed to one at idle. The X-57 vehicle defines cruise,
+takeoff, and landing configurations, a configuration with the left cruise motor failed, and
+one with an outboard high-lift motor failed. Each produces its own mass, center of gravity,
+and inertia from Eq.~\eqref{eq:mass}, and the same description yields a weight statement and
+the center-of-gravity travel across configurations.
+
+\subsection{Controls by Role}
+Each control channel is a physical effector, such as a surface or a motor, with travel limits
+and a role (pitch, roll, yaw, thrust, lift, flap, trim). A mixer maps pilot or autopilot
+commands to channels, $\vect{c} = \vect{M}\,\vect{u}_{\mathrm{cmd}} + \vect{b}$, and an
+actuator with a lag, a rate limit, and position stops can be attached to any channel. The
+analyses look controls up by role rather than by name. The same trim and control-law code
+therefore runs the F-16, whose channels are the elevator, ailerons, rudder, and throttle, and
+the X-57 vehicle, whose pitch channel is an all-moving stabilator and whose thrust is shared
+among fourteen motors.
+
+\subsection{Aircraft Data}
+Aircraft are stored in a JSON format in which every value carries its units and its source,
+and formulas are restricted to a safe set so that a data file cannot execute code. Models
+published in the ANSI/AIAA S-119 (DAVE-ML) standard~\cite{s119} are imported directly; the
+NASA F-16 used for verification enters this way, and its source files are checked against
+recorded hashes so that every result traces to the data it came from.
+
+%=========================================================================================
+\section{Analysis and Simulation}
+%=========================================================================================
+\subsection{Trim, Linearization, and Modes}
+The compiled aircraft provides its equations of motion as a single function,
+$\dot{\vect{x}} = \vect{f}(\vect{x}, \vect{u})$. Trim finds the state and controls that satisfy
+\begin{equation}
+\label{eq:trim}
+\vect{f}(\vect{x}^\ast, \vect{u}^\ast) = \vect{0}
+\end{equation}
+for a stated flight condition, choosing its unknowns by role, so that an asymmetric case such
+as one engine inoperative is trimmed by solving for sideslip or bank together with aileron and
+rudder. The result carries an explicit status: trimmed, not trimmable with the reason, not
+converged, or outside the range of the aerodynamic data. The linear model is
+\begin{equation}
+\label{eq:lin}
+\vect{A} = \left.\frac{\partial \vect{f}}{\partial \vect{x}}\right|_{\ast}, \qquad
+\vect{B} = \left.\frac{\partial \vect{f}}{\partial \vect{u}}\right|_{\ast},
+\end{equation}
+computed by central differences whose step size is checked for convergence, and the
+short-period, phugoid, Dutch-roll, roll, and spiral modes are identified automatically from
+the eigenvectors.
+
+\subsection{Six-Degree-of-Freedom Simulation in Simulink}
+The trimmed state initializes a Simulink model that VITAL generates from code. The Aerospace
+Blockset six-degree-of-freedom Earth-centered quaternion block integrates the motion over an
+oblate, rotating Earth:
+\begin{equation}
+\label{eq:eom}
+\begin{aligned}
+\dot{\vect{r}}_e &= \vect{v}_e, &
+\dot{\vect{v}}_e &= \vect{C}_{eb}\frac{\vect{F}_b}{m} + \vect{g}(\vect{r}_e)
+  - 2\,\boldsymbol{\Omega}_E \times \vect{v}_e
+  - \boldsymbol{\Omega}_E \times \left(\boldsymbol{\Omega}_E \times \vect{r}_e\right), \\
+\vect{J}\,\dot{\boldsymbol{\omega}} &= \vect{M}_{cg} - \boldsymbol{\omega} \times \vect{J}\,\boldsymbol{\omega},
+\end{aligned}
+\end{equation}
+with the attitude carried as a quaternion and $\vect{g}$ the WGS-84 gravitation including the
+$J_2$ term. At every integration step the forces and moments of Eq.~\eqref{eq:loads} are taken
+from the VITAL aircraft model, so the simulation flies exactly the aircraft that was trimmed
+and linearized. The block's conventions were measured rather than assumed; its initial body
+rates, for example, are taken relative to the local north-east-down frame, so the inertial
+rates specified in the NESC cases are converted before use.
+
+The simulation runs paced to real time and sends one state packet per step to a CesiumJS
+viewer, which shows the aircraft over terrain with its flight data and control positions. The
+position and attitude drawn in the viewer are computed by the same code that writes the offline
+replay files, and every live session is recorded, so a live demonstration can always be traced
+back to the run that produced it.
+
+\subsection{Certification Criteria}
+The analyses feed a rule engine in which each criterion is a machine-readable record with
+its source. MIL-F-8785C~\cite{mil8785c} is implemented, giving a flying-qualities level and
+margin for each mode across the envelope. Because a configuration is part of the aircraft
+description, the same criteria can be evaluated with a component failed. Part 23 criteria for controllability and climb with one engine inoperative
+are the next addition.
+
+%=========================================================================================
+\section{Verification}
+%=========================================================================================
+VITAL is developed with an automated test suite of about \tbd{1,100} tests. Each numerical
+check compares a result with published data, an independent tool such as the MATLAB
+Aerospace Toolbox, or an analytic solution; for example, the load transfer of
+Eq.~\eqref{eq:loads} is checked for power invariance, since the power of a load on a moving
+rigid body must be the same about every point. To confirm that the tests detect the errors
+that matter, 341 deliberate faults, such as a transposed rotation, a dropped product of
+inertia, or a reversed Earth rotation, are inserted into copies of the code, and each must
+cause its tests to fail.
+
+The external reference is the NESC set~\cite{nesc2015}: ten cases with spheres and bricks that
+exercise the equations of motion, gravitation, atmosphere, and wind, and eight cases with the
+NASA F-16, trimmed and under autopilot, including flight around the North Pole and across
+the International Date Line. NASA compared its tools with the percent difference
+\begin{equation}
+\label{eq:pct}
+\delta u_{\mathrm{pct}} = 100\,
+  \frac{\max_t \left| u(t) - u_{\mathrm{ref}}(t) \right|}
+       {\max_{t} \left| u_{\mathrm{ref}}(t) \right|},
+\end{equation}
+where $u_{\mathrm{ref}}$ is the average of the tools (for wrapped angles, one benchmark tool
+with a trigonometric angle difference), applying a small set of documented exclusions. VITAL
+uses the same metric and exclusions: NASA's published values are first recomputed from the
+NESC data files, and VITAL is then measured against the same reference, without being
+included in the average.
+
+%=========================================================================================
+\section{Preliminary Results}
+%=========================================================================================
+\subsection{NESC Check-Cases}
+Tables~\ref{tab:case110}--\ref{tab:sig1116} reproduce the four summary tables of the NESC
+report with a column added for VITAL. \tbd{Two or three sentences on where VITAL lies relative
+to the NASA tools for cases 1--10 and for the F-16 cases, and which signals differ, with the
+report's own explanation of the F-16 maneuver transients.} Figure~\ref{fig:case131} shows the
+altitude change of case 13.1.
+
+\begin{table}[hbt!]
+\caption{\label{tab:case110} Largest differences for check-cases 1--10, by case, percent of
+the largest reference value (NASA values from Ref.~\cite{nesc2015}, Table 77)}
+\centering
+\small
+\begin{tabular}{llccccccc}
+\hline\hline
+Case & Name & SIM 1 & SIM 2 & SIM 3 & SIM 4 & SIM 5 & SIM 6 & VITAL \\\hline
+1  & Dragless sphere                     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+2  & Dragless tumbling brick             & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+3  & Tumbling brick with damping         & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+4  & Ball drop, round non-rotating Earth & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+5  & Ball drop, round rotating Earth     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+6  & Ball drop, WGS-84 Earth             & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+7  & Ball drop, steady wind              & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+8  & Ball drop, wind shear               & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+9  & Eastward ballistic shot             & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+10 & Northward ballistic shot            & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\\hline
+\multicolumn{2}{l}{Largest for each tool} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[hbt!]
+\caption{\label{tab:sig110} Largest differences across check-cases 1--10, by signal, percent
+of the largest reference value (NASA values from Ref.~\cite{nesc2015}, Table 78)}
+\centering
+\small
+\begin{tabular}{lccccccc}
+\hline\hline
+Signal & SIM 1 & SIM 2 & SIM 3 & SIM 4 & SIM 5 & SIM 6 & VITAL \\\hline
+\tbd{rows as in Table 78} & & & & & & & \\\hline
+Largest for each tool & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[hbt!]
+\caption{\label{tab:case1116} Largest differences for the F-16 check-cases, by case, percent of
+the largest reference value (NASA values from Ref.~\cite{nesc2015}, Table 79)}
+\centering
+\small
+\begin{tabular}{llcccc}
+\hline\hline
+Case & Name & SIM 2 & SIM 4 & SIM 5 & VITAL \\\hline
+11   & Subsonic, trimmed            & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+12   & Supersonic, trimmed          & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+13.1 & Altitude change              & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+13.2 & Velocity change              & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+13.3 & Heading change               & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+13.4 & Course offset                & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+15   & Circling the North Pole      & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+16   & Circling the Equator and IDL & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\\hline
+\multicolumn{2}{l}{Largest for each tool} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[hbt!]
+\caption{\label{tab:sig1116} Largest differences across the F-16 check-cases, by signal, percent
+of the largest reference value (NASA values from Ref.~\cite{nesc2015}, Table 80)}
+\centering
+\small
+\begin{tabular}{lcccc}
+\hline\hline
+Signal & SIM 2 & SIM 4 & SIM 5 & VITAL \\\hline
+\tbd{rows as in Table 80} & & & & \\\hline
+Largest for each tool & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[hbt!]
+\centering
+\begin{minipage}[t]{0.32\textwidth}\centering
+  \fbox{\parbox[c][1.5in][c]{0.9\linewidth}{\centering\tbd{Altitude, ft}}}\\[2pt]
+  \raggedright a)
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\textwidth}\centering
+  \fbox{\parbox[c][1.5in][c]{0.9\linewidth}{\centering\tbd{Pitch angle, deg}}}\\[2pt]
+  \raggedright b)
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\textwidth}\centering
+  \fbox{\parbox[c][1.5in][c]{0.9\linewidth}{\centering\tbd{Pitch rate, deg/s}}}\\[2pt]
+  \raggedright c)
+\end{minipage}
+\caption{\label{fig:case131} Check-case 13.1, 100-ft altitude change, NASA tools and VITAL:
+a) altitude, b) pitch angle, c) pitch rate.}
+\end{figure}
+
+\subsection{F-16 Trim and Modes}
+At the case-11 condition (10,013 ft, 565.7 ft/s), the VITAL trim matches the NASA reference
+trim to 0.0004 deg in pitch attitude, 0.0002 deg in elevator, and 0.0007 percentage points in
+throttle. Table~\ref{tab:modes} lists the modes identified at this condition.
+
+\begin{table}[hbt!]
+\caption{\label{tab:modes} Modes of the NASA F-16 model at the case-11 trim condition}
+\centering
+\begin{tabular}{lccc}
+\hline\hline
+Mode & Eigenvalue, 1/s & Damping ratio & Frequency, rad/s, or time constant, s \\\hline
+Short period & $-1.13 \pm 2.23i$     & 0.45  & 2.50 \\
+Phugoid      & $-0.0062 \pm 0.0801i$ & 0.077 & 0.080 \\
+Dutch roll   & $-0.389 \pm 3.295i$   & 0.117 & 3.32 \\
+Roll         & \tbd{$-2.94$}         & --    & 0.34 \\
+Spiral       & \tbd{confirm}         & --    & 99 \\
+\hline\hline
+\end{tabular}
+\end{table}
+
+\subsection{Real-Time Simulation and Visualization}
+Flying the F-16 in Simulink and streaming it live, the attitude drawn in the viewer matches the
+simulated attitude to $2.4\times10^{-6}$ deg, the delay from the simulation to the screen is
+7.9 ms at the 95th percentile, and a 40-s session delivered all 4,001 state packets
+(Fig.~\ref{fig:cesium}).
+
+\begin{figure}[hbt!]
+\centering
+\fbox{\parbox[c][2.0in][c]{0.6\textwidth}{\centering\tbd{Screenshot: live CesiumJS view of the
+F-16 over Edwards Air Force Base}}}
+\caption{\label{fig:cesium} Live view of the F-16 simulation in CesiumJS.}
+\end{figure}
+
+%=========================================================================================
+\section{Expected Results of the Final Paper}
+%=========================================================================================
+The final paper will apply the framework to the X-57 vehicle in its off-nominal
+configurations: trim and simulation with a cruise motor and with a high-lift motor failed, the
+resulting control margins, and the center-of-gravity and inertia changes across
+configurations. It will add Part 23 controllability and climb criteria for one engine
+inoperative, pilot-in-the-loop flight in the live viewer, and the aircraft studied in
+Ref.~\cite{gould2025falco}, and will complete the NESC comparison with pairwise differences
+between VITAL and each NASA tool.
+
+%-----------------------------------------------------------------------------------------
+\section*{Acknowledgments}
+\tbd{Funding and acknowledgments. AI-use statement as required by AIAA.}
+
+%-----------------------------------------------------------------------------------------
+\begin{thebibliography}{99}
+\bibitem{part23} Federal Aviation Administration, ``Revision of Airworthiness Standards for
+  Normal, Utility, Acrobatic, and Commuter Category Airplanes,'' Final Rule, Amendment 23-64,
+  \emph{Federal Register}, Vol. 81, No. 250, 30 Dec. 2016, pp. 96572--96704. \tbd{verify}
+\bibitem{berndt2004jsbsim} Berndt, J. S., ``JSBSim: An Open Source Flight Dynamics Model in
+  C++,'' AIAA Paper 2004-4923, Aug. 2004. https://doi.org/10.2514/6.2004-4923.
+\bibitem{xplane} Laminar Research, ``How X-Plane Works,''
+  https://www.x-plane.com/desktop/how-x-plane-works/ [retrieved 10 Nov. 2026].
+\bibitem{mathworks_asb} The MathWorks, Inc., \emph{Aerospace Blockset} and \emph{Aerospace
+  Toolbox User's Guides}, R2025b, Natick, MA, 2025.
+\bibitem{nesc2015} Murri, D. G., Jackson, E. B., Shelton, R. O., \tbd{all authors},
+  ``Check-Cases for Verification of 6-Degree-of-Freedom Flight Vehicle Simulations,''
+  NASA/TM-2015-218675, Vols. I and II, 2015.
+\bibitem{jackson2015} Jackson, E. B., Madden, M. M., Shelton, R. O., \tbd{all authors and
+  title}, AIAA Paper 2015-1810, Jan. 2015.
+\bibitem{x57fs} NASA Armstrong Flight Research Center, ``X-57 Maxwell,'' Fact Sheet FS-109,
+  \tbd{year}.
+\bibitem{heeg2019} Heeg, J., \tbd{all authors}, ``Whirl Flutter and the Development of the NASA
+  X-57 Maxwell,'' \emph{International Forum on Aeroelasticity and Structural Dynamics}, 2019.
+\bibitem{s119} American Institute of Aeronautics and Astronautics, \emph{Flight Dynamics Model
+  Exchange Standard}, ANSI/AIAA S-119-2011, Reston, VA, 2011.
+\bibitem{mil8785c} \emph{Military Specification: Flying Qualities of Piloted Airplanes},
+  MIL-F-8785C, U.S. Department of Defense, 1980.
+\bibitem{gould2025falco} Gould, J., Shune, N., Solano Sarmiento, D., and Sarojini, D.,
+  ``Performance and Regulatory Assessment Trim Formulations for Conceptual Aircraft Design,''
+  AIAA Paper 2025-3624, July 2025. https://doi.org/10.2514/6.2025-3624.
+\end{thebibliography}
+
+\end{document}

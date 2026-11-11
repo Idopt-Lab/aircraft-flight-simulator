@@ -1,0 +1,240 @@
+
+%%% Preamble Requirements %%%
+% \usepackage{geometry}
+% \usepackage{amsfonts}
+% \usepackage{amsmath}
+% \usepackage{amssymb}
+% \usepackage{tikz}
+
+% Optional packages such as sfmath set through python interface
+% \usepackage{}
+
+% \usetikzlibrary{arrows,chains,positioning,scopes,shapes.geometric,shapes.misc,shadows}
+
+%%% End Preamble Requirements %%%
+
+\input{"C:/Users/krish/AppData/Local/Programs/Python/Python310/lib/site-packages/pyxdsm/diagram_styles"}
+\begin{tikzpicture}
+
+\matrix[MatrixSetup]{
+%Row 0
+\node [DataIO] (output_pt) {$\begin{array}{c}\mathbf{x}^*,\mathbf{u}^*\ \text{(Fig. 1)}, \\ \texttt{ac},\ \mathbf{a}\end{array}$};&
+\node [DataIO] (output_stall) {$C_{L max}(\delta_f)$};&
+&
+\node [DataIO] (output_pwr) {$\eta_{motor},\ E_{batt}$};&
+&
+\node [DataIO] (output_vmc) {$\delta_{r,max},\ y_{eng}$};&
+&
+&
+\node [DataIO] (output_cmp) {$\texttt{d.targets}$};&
+\node [DataIO] (output_ver) {$\begin{array}{c}\text{deck, model, trim,} \\ \text{.slx, net\_fdm}\end{array}$};&
+&
+\\
+%Row 1
+\node [Function] (pt) {$\begin{array}{c}\text{1: Trim point and} \\ \text{configuration}\end{array}$};&
+\node [DataInter] (pt-stall) {$W,\ \rho_0,\ S$};&
+\node [DataInter] (pt-ld) {$\text{polars},\ h_{cr}$};&
+\node [DataInter] (pt-pwr) {$D_{cr},\ V_{cr}$};&
+\node [DataInter] (pt-env) {$P_{max},\ \text{polar}$};&
+\node [DataInter] (pt-vmc) {$C_{n\delta r},\ T(V)$};&
+\node [DataInter] (pt-rc) {$T_{total},\ D$};&
+\node [DataInter] (pt-fld) {$\texttt{takeoff\_params}$};&
+&
+&
+&
+\\
+%Row 2
+&
+\node [ImplicitFunction] (stall) {$\begin{array}{c}\text{2: Minimum steady} \\ \text{flight speed} \\ \text{fixed point}\end{array}$};&
+&
+&
+&
+&
+\node [DataInter] (stall-rc) {$V_{s,blown} \rightarrow V_y$};&
+&
+\node [DataInter] (stall-cmp) {$V_s,V_{s1},V_{s0},V_{s,bl}$};&
+&
+&
+\\
+%Row 3
+&
+&
+\node [Function] (ld) {$\begin{array}{c}\text{3: Lift-to-drag} \\ \text{sweep}\end{array}$};&
+&
+&
+&
+&
+&
+\node [DataInter] (ld-cmp) {$(L/D)_{max},\ (L/D)_{cr}$};&
+&
+&
+\\
+%Row 4
+&
+&
+&
+\node [ImplicitFunction] (pwr) {$\begin{array}{c}\text{4: Cruise shaft power} \\ \text{disk model inverted}\end{array}$};&
+&
+&
+&
+&
+\node [DataInter] (pwr-cmp) {$P_{shaft},\ \eta_p,\ E,\ R$};&
+&
+&
+\\
+%Row 5
+&
+&
+&
+&
+\node [ImplicitFunction] (env) {$\begin{array}{c}\text{5: Level-flight} \\ \text{envelope } V_H(h)\end{array}$};&
+&
+&
+&
+\node [DataInter] (env-cmp) {$V_H(h)$};&
+&
+&
+\\
+%Row 6
+&
+&
+&
+&
+&
+\node [ImplicitFunction] (vmc) {$\begin{array}{c}\text{6: } V_{mc}\ \text{one motor out} \\ \text{rudder-limited}\end{array}$};&
+&
+&
+\node [DataInter] (vmc-cmp) {$V_{mc}$};&
+&
+&
+\\
+%Row 7
+&
+&
+&
+&
+&
+&
+\node [Function] (rc) {$\begin{array}{c}\text{7: DiTTo climb} \\ RC=(T-D)V/W\end{array}$};&
+&
+\node [DataInter] (rc-cmp) {$RC,\ I_{bus}$};&
+&
+&
+\\
+%Row 8
+&
+&
+&
+&
+&
+&
+&
+\node [ImplicitFunction] (fld) {$\begin{array}{c}\text{8: Takeoff and landing} \\ \text{time march} + V_1\ \text{bisection}\end{array}$};&
+\node [DataInter] (fld-cmp) {$s_{TO},\ s_{LDG}$};&
+&
+&
+\\
+%Row 9
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (cmp) {$\begin{array}{c}\text{9: Comparison vs} \\ \text{published targets}\end{array}$};&
+\node [DataInter] (cmp-ver) {$\text{model vs published}$};&
+&
+\node [DataIO] (right_output_cmp) {$\begin{array}{c}\text{comparison table,} \\ \texttt{X57Performance.csv}\end{array}$};\\
+%Row 10
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function,stack] (ver) {$\begin{array}{c}\text{10: Verification suite} \\ \text{6 phases}\end{array}$};&
+&
+\node [DataIO] (right_output_ver) {$\begin{array}{c}\text{GREEN/RED per check,} \\ \texttt{all\_pass}\end{array}$};\\
+%Row 11
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+};
+
+% XDSM process chains
+{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (pt);
+\chainin (stall) [join=by ProcessHVA];
+\chainin (ld) [join=by ProcessHVA];
+\chainin (pwr) [join=by ProcessHVA];
+\chainin (env) [join=by ProcessHVA];
+\chainin (vmc) [join=by ProcessHVA];
+\chainin (rc) [join=by ProcessHVA];
+\chainin (fld) [join=by ProcessHVA];
+\chainin (cmp) [join=by ProcessHVA];
+\chainin (ver) [join=by ProcessHVA];
+\end{pgfonlayer}
+}
+
+\begin{pgfonlayer}{data}
+\path
+% Horizontal edges
+(pt) edge [DataLine] (pt-stall)
+(pt) edge [DataLine] (pt-ld)
+(pt) edge [DataLine] (pt-pwr)
+(pt) edge [DataLine] (pt-env)
+(pt) edge [DataLine] (pt-vmc)
+(pt) edge [DataLine] (pt-rc)
+(pt) edge [DataLine] (pt-fld)
+(stall) edge [DataLine] (stall-rc)
+(stall) edge [DataLine] (stall-cmp)
+(ld) edge [DataLine] (ld-cmp)
+(pwr) edge [DataLine] (pwr-cmp)
+(env) edge [DataLine] (env-cmp)
+(vmc) edge [DataLine] (vmc-cmp)
+(rc) edge [DataLine] (rc-cmp)
+(fld) edge [DataLine] (fld-cmp)
+(cmp) edge [DataLine] (cmp-ver)
+(cmp) edge [DataLine] (right_output_cmp)
+(ver) edge [DataLine] (right_output_ver)
+% Vertical edges
+(pt-stall) edge [DataLine] (stall)
+(pt-ld) edge [DataLine] (ld)
+(pt-pwr) edge [DataLine] (pwr)
+(pt-env) edge [DataLine] (env)
+(pt-vmc) edge [DataLine] (vmc)
+(pt-rc) edge [DataLine] (rc)
+(pt-fld) edge [DataLine] (fld)
+(stall-rc) edge [DataLine] (rc)
+(stall-cmp) edge [DataLine] (cmp)
+(ld-cmp) edge [DataLine] (cmp)
+(pwr-cmp) edge [DataLine] (cmp)
+(env-cmp) edge [DataLine] (cmp)
+(vmc-cmp) edge [DataLine] (cmp)
+(rc-cmp) edge [DataLine] (cmp)
+(fld-cmp) edge [DataLine] (cmp)
+(cmp-ver) edge [DataLine] (ver)
+(pt) edge [DataLine] (output_pt)
+(stall) edge [DataLine] (output_stall)
+(pwr) edge [DataLine] (output_pwr)
+(vmc) edge [DataLine] (output_vmc)
+(cmp) edge [DataLine] (output_cmp)
+(ver) edge [DataLine] (output_ver);
+\end{pgfonlayer}
+
+\end{tikzpicture}

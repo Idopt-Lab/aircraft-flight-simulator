@@ -1,0 +1,82 @@
+==============================================================================
+General AAMF architecture   (fig_0_aamf_general)
+==============================================================================
+             1   2   3   4   5   6   7   8   9  10  11  12  13  14
+    deck    1  >  >  >  .  .  .  .  .  .  .  .  .  .
+ aeromod    .  2  .  >  .  .  .  .  .  .  .  .  .  .
+ propmod    .  .  3  >  .  .  .  .  .  .  .  .  .  .
+     cfg    .  .  .  4  >  >  .  .  .  .  >  .  .  .
+    trim    .  .  .  .  5  >  >  >  >  >  >  .  .  .
+   loads    .  .  .  .  <  6  >  >  >  .  .  .  >  .
+  perfpt    .  .  .  .  .  <  7  .  .  .  .  .  .  .
+    stab    .  .  .  .  .  <  .  8  .  .  .  .  .  .
+   field    .  .  .  .  .  <  .  .  9  .  .  .  .  .
+ mission    .  .  .  .  <  .  .  .  . 10  .  .  .  .
+   xport    .  .  .  .  .  .  .  .  .  . 11  >  >  .
+    sim6    .  .  .  .  .  .  .  .  .  .  . 12  >  >
+    sfun    .  .  .  .  .  <  .  .  .  .  .  < 13  .
+     viz    .  .  .  .  .  .  .  .  .  .  .  .  . 14
+
+  systems 14   couplings 29   feedback 7
+    loop closure: loads -> trim
+    loop closure: perfpt -> loads
+    loop closure: stab -> loads
+    loop closure: field -> loads
+    loop closure: mission -> trim
+    loop closure: sfun -> sim6
+    loop closure: sfun -> loads
+
+==============================================================================
+Complete AAMF workflow   (fig_1_aamf_workflow)
+==============================================================================
+            1   2   3   4   5   6   7   8   9  10  11  12  13  14
+   deck    1  >  >  >  .  .  .  >  .  .  .  .  .  .
+   derv    .  2  >  .  .  .  .  .  .  .  .  .  .  .
+    ctx    .  .  3  >  .  >  .  .  .  .  .  .  .  .
+    asm    .  .  .  4  >  >  .  .  >  .  .  .  .  .
+   trim    .  .  .  .  5  >  >  >  >  .  .  .  .  .
+  model    .  .  .  .  <  6  .  .  .  .  .  .  .  .
+   stab    .  .  .  .  .  .  7  .  .  .  .  .  .  .
+   perf    .  .  .  .  .  .  .  8  .  .  .  .  .  .
+  xport    .  .  .  .  .  .  .  .  9  >  >  .  .  .
+  tloop    .  .  .  .  .  .  .  .  . 10  >  >  .  .
+   sfun    .  .  .  .  .  .  .  .  .  < 11  .  .  .
+    fdm    .  .  .  .  .  .  .  .  .  .  . 12  >  .
+ bridge    .  .  .  .  .  .  .  .  .  .  .  . 13  >
+   view    .  .  .  .  .  .  .  .  .  .  .  .  . 14
+
+  systems 14   couplings 22   feedback 2
+    loop closure: model -> trim
+    loop closure: sfun -> tloop
+
+==============================================================================
+Force and moment model   (fig_2_force_moment)
+==============================================================================
+          1   2   3   4   5   6   7
+ call    1  >  .  .  .  .  .
+ cond    .  2  >  >  >  >  .
+ disk    .  .  3  >  >  .  .
+ aero    .  .  .  4  .  .  >
+ elec    .  .  .  .  5  .  >
+ grav    .  .  .  .  .  6  >
+  sum    <  .  .  .  .  .  7
+
+  systems 7   couplings 11   feedback 1
+    loop closure: sum -> call
+
+==============================================================================
+Performance and verification   (fig_3_evaluation)
+==============================================================================
+           1   2   3   4   5   6   7   8   9  10
+    pt    1  >  >  >  >  >  >  >  .  .
+ stall    .  2  .  .  .  .  >  .  >  .
+    ld    .  .  3  .  .  .  .  .  >  .
+   pwr    .  .  .  4  .  .  .  .  >  .
+   env    .  .  .  .  5  .  .  .  >  .
+   vmc    .  .  .  .  .  6  .  .  >  .
+    rc    .  .  .  .  .  .  7  .  >  .
+   fld    .  .  .  .  .  .  .  8  >  .
+   cmp    .  .  .  .  .  .  .  .  9  >
+   ver    .  .  .  .  .  .  .  .  . 10
+
+  systems 10   couplings 16   feedback 0

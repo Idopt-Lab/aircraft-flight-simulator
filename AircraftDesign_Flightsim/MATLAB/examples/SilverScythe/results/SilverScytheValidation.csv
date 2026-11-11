@@ -1,0 +1,16 @@
+quantity,low,high,report_reconstruction,published,unit
+"Max Mach 30000 ft AB",1.83098,1.79383,1.63445,1.64,
+"Max Mach sea level MIL",1.0473,0.994825,0.96131,0.93,
+"Approach speed",137.341,134.407,134.407,133.8,kt
+"Arresting engagement speed",144.208,141.127,141.127,140,kt
+"Catapult end speed",136.818,136.755,136.793,133.5,kt
+"SEROC at launch",2303.59,2031.44,2186.16,2308,ft/min
+"SEROC at approach",5361.68,5000.69,3069.27,3320,ft/min
+"Sustained turn 20000 ft",12.3365,12.0343,11.7934,12,deg/s
+"Instantaneous turn 20000 ft",21.6013,21.6585,21.6498,22,deg/s
+"Corner speed 20000 ft",401.407,400.355,400.516,400,kt
+"Optimum nozzle deflection",11,11,11,11,deg
+"Best cruise Mach",0.86,0.84,0.88,0.9,
+"Best loiter Mach",0.68,0.7,0.7,0.8,
+"CD total M0.80 30 kft",0.0195676,0.024164,0.0314994,0.0307867,
+"CD total M1.64 30 kft",0.0220042,0.0260068,0.0297839,0.0297827,

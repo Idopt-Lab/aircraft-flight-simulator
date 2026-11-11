@@ -1,0 +1,319 @@
+% VITAL -- draft abstract package for the professor (structure, gap, research question)
+% Compile: pdflatex VITAL_abstract_draft.tex
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs,array,amssymb,pifont,enumitem,xcolor,hyperref}
+\usepackage[numbers]{natbib}
+\newcommand{\yes}{\ding{51}}            % full support
+\newcommand{\prt}{$\circ$}             % partial / via add-on
+\newcommand{\no}{--}                    % not addressed
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\setlist{itemsep=2pt,topsep=3pt}
+
+\title{\textbf{VITAL: A Verified, Frame-Explicit Flight Simulation Framework\\
+that Turns Aircraft Models into Traceable Flying-Qualities Verdicts}\\[4pt]
+\large Draft abstract and paper outline}
+\author{Krish Bhatt \\ Virginia Tech}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+%=====================================================================
+\section*{Draft abstract (about 250 words)}
+Flying-qualities problems are usually discovered late, after a configuration
+is frozen, because the tools that model an aircraft, the tools that simulate
+it, and the documents that judge it are disconnected. Open flight-dynamics
+codes simulate well but do not issue verdicts against handling-qualities
+requirements; conceptual-design environments predict stability but are
+rarely verified against independent reference data; and clearance methods
+quantify robustness but are tied to one aircraft and one control law.
+Certification by analysis needs all three at once: a credible model, a
+verified simulation, and a rule-based verdict whose margin and uncertainty
+are stated.
+
+This work presents VITAL, an aircraft-agnostic framework that links these
+steps: concept, model, trim and linearization, rule verdict, and design
+feedback. Aircraft are defined as data:
+\begin{itemize}
+  \item an explicit tree of reference axes;
+  \item load-producing components;
+  \item mass properties, read from standard DAVE-ML (ANSI/AIAA S-119) files.
+\end{itemize}
+Every frame transfer and moment-reference change is therefore performed by
+one verified mechanism.
+
+Each capability is accepted only through gated, test-first evidence:
+\begin{itemize}
+  \item published NASA check cases;
+  \item independent toolbox results;
+  \item analytic solutions;
+  \item deliberate code sabotages that the tests must detect.
+\end{itemize}
+
+The framework is demonstrated on the NASA NESC F-16 model. Early results:
+\begin{itemize}
+  \item the published trim is reproduced to within $0.0004^\circ$;
+  \item a 10-second Aerospace Blockset 6-DOF hold stays at trim to
+    $10^{-14}$, and agrees with the framework's own equations of motion
+    to $10^{-12}$;
+  \item MIL-F-8785C Class IV levels are assessed with stated margins.
+\end{itemize}
+The paper then shows how uncertainty-aware verdicts and sensitivity-based
+control-law changes restore compliance. It outlines the extension to
+distributed electric propulsion (NASA X-57) and to FAA Part 23 criteria.
+\todo{update numbers at submission}
+
+%=====================================================================
+\section{Main gap in the literature}
+\begin{itemize}
+  \item \textbf{Simulation and judgement are separate.} Mature simulators
+    (JSBSim~\citep{berndt2004}, MATLAB Aerospace Blockset) integrate the
+    equations of motion but stop at time histories. Turning those into a
+    \emph{verdict} against MIL-F-8785C or Part 23 criteria is left to
+    project-specific scripts.
+  \item \textbf{Design-stage stability tools are rarely verified against
+    independent data.}
+    \begin{itemize}
+      \item CEASIOM/SDSA~\citep{rizzi2011simsac} and total-envelope
+        conceptual S\&C methods~\citep{swann2015} predict modes and levels
+        early.
+      \item SUAVE~\citep{lukaczyk2015} supports unconventional
+        configurations.
+      \item None of them reports reproduction of public multi-simulation
+        check cases such as NASA/TM-2015-218675~\citep{nesc2015}.
+    \end{itemize}
+  \item \textbf{Robust clearance is aircraft- and law-specific.} GARTEUR
+    clearance methods~\citep{fielding2002} quantify worst cases, but they
+    are not embedded in a reusable model-to-verdict pipeline. Their
+    ``pass'' semantics under uncertainty are not standardized.
+  \item \textbf{Credibility is the bottleneck for certification by
+    analysis.} NASA's CbA guide~\citep{mauery2021} and recent credibility
+    studies~\citep{favaro2025} identify verified models, quantified
+    uncertainty, and traceable evidence as the missing pieces.
+  \item \textbf{Frame and reference-point errors are silent.} Moment-reference
+    shifts, canted thrust lines, station/body conventions and inertia
+    products are typically hand-coded per aircraft. For distributed-propulsion
+    aircraft with many canted propulsors, this does not scale and is not
+    auditable.
+\end{itemize}
+
+\begin{table}[h]
+\centering\small
+\caption{Capabilities of representative tools as described in their
+published sources (\yes\ addressed, \prt\ partial or via add-on,
+\no\ not addressed). \todo{confirm each cell during the literature review}}
+\label{tab:gap}
+\begin{tabular}{@{}>{\raggedright}p{3.1cm}*{8}{>{\centering\arraybackslash}p{1.25cm}}@{}}
+\toprule
+Tool / approach & Nonlinear 6-DOF sim & Public check-case verif. & Explicit frames \& ref.\ points & Trim / lin.\ / modes & Rule-based FQ verdict & Uncert.-aware verdict & Design feedback & Any config.\ (e.g.\ DEP) \\
+\midrule
+JSBSim~\citep{berndt2004}             & \yes & \prt & \prt & \prt & \no   & \no   & \no   & \yes \\
+Aerospace Blockset                    & \yes & \no   & \prt & \prt & \no   & \no   & \no   & \prt \\
+SUAVE~\citep{lukaczyk2015}            & \no  & \no   & \prt & \prt & \no   & \no   & \yes  & \yes \\
+CEASIOM / SDSA~\citep{rizzi2011simsac}& \yes & \no   & \prt & \yes  & \yes  & \no   & \prt & \prt \\
+Total-envelope S\&C~\citep{swann2015} & \no  & \no   & \no   & \yes  & \prt & \no   & \yes  & \prt \\
+GARTEUR clearance~\citep{fielding2002}& \yes & \no   & \no   & \yes  & \yes  & \yes  & \no   & \no \\
+NESC check cases~\citep{nesc2015}     & \yes & \yes  & \no   & \no   & \no   & \no   & \no   & \no \\
+\midrule
+\textbf{VITAL (this work)}            & \yes & \yes  & \yes  & \yes  & \yes  & \yes  & \yes  & \prt\,$\rightarrow$\,\yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Gap statement (one sentence).}
+No openly documented framework carries an arbitrary aircraft definition
+through a simulation that has been verified against independent public
+reference data, all the way to a rule-based flying-qualities verdict. Such a
+verdict would state its margin and uncertainty, and would identify the design
+change that restores compliance.
+
+%=====================================================================
+\section{Research question}
+\textbf{Main question.} Can an aircraft-agnostic simulation framework, verified
+against independent public reference data, produce \emph{credible and
+traceable} flying-qualities verdicts, with explicit margins and uncertainty,
+early enough in design to guide configuration and control-law changes?
+
+\textbf{Sub-questions.}
+\begin{enumerate}[label=RQ\arabic*.]
+  \item \textbf{Representation.} Can an explicit tree of axes, components and
+    mass properties represent conventional and distributed-propulsion aircraft
+    with no aircraft-specific plant code? Can it do so without loss of
+    accuracy or speed against a hand-written model?
+  \item \textbf{Verification.} What evidence is sufficient for each
+    capability to count as credible? The candidates are public check cases,
+    independent tools, analytic solutions and mutation (sabotage) testing.
+  \item \textbf{Verdict.} How should a ``pass'' be defined when model
+    parameters are uncertain? Specifically, how should worst-case margin and
+    probability of meeting a level be combined so that a robust pass is never
+    weaker than a nominal pass?
+  \item \textbf{Feedback.} Can sensitivities of the verdict margin identify
+    the design or control-law change that restores compliance, confirmed by
+    re-assessment?
+\end{enumerate}
+
+%=====================================================================
+\section{Proposed paper structure}
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+\item \textbf{Introduction.}
+  \begin{itemize}
+    \item Why flying-qualities issues surface late.
+    \item The push toward certification by analysis.
+    \item New configurations (distributed electric propulsion, eVTOL).
+    \item Contributions, and the research question.
+  \end{itemize}
+
+\item \textbf{Related work.}
+  \begin{enumerate}[label*=\arabic*.]
+    \item \emph{Flight-dynamics simulators}: JSBSim, Aerospace Blockset;
+      what they verify and what they leave to the user.
+    \item \emph{Conceptual-design stability and control}: CEASIOM/SDSA,
+      SUAVE, total-envelope methods.
+    \item \emph{Flight-control clearance and robustness}: GARTEUR AG11,
+      $\mu$-analysis, optimization-based clearance.
+    \item \emph{Simulation credibility and certification by analysis}:
+      NASA CbA guide, NASA-STD-7009 \todo{cite},
+      UQ-based credibility.
+    \item \emph{Gap}: Table~\ref{tab:gap} and the gap statement.
+  \end{enumerate}
+
+\item \textbf{The VITAL framework.}
+  \begin{enumerate}[label*=\arabic*.]
+    \item \emph{Frame-explicit object core.}
+      \begin{itemize}
+        \item Axis tree, points, vectors, loads (wrenches), inertia.
+        \item One verified mechanism for every frame and moment-reference
+          transfer.
+      \end{itemize}
+    \item \emph{Standards-based data layer.}
+      \begin{itemize}
+        \item DAVE-ML import with units and provenance.
+        \item Hash-protected source data.
+        \item Embedded check data reproduced.
+      \end{itemize}
+    \item \emph{Aircraft as data.}
+      \begin{itemize}
+        \item Components (aero database, propulsors) on axes, plus mass
+          properties.
+        \item A compiled fast path proven identical to the object path.
+      \end{itemize}
+    \item \emph{Analyses.}
+      \begin{itemize}
+        \item Typed trim with status codes and stall/data-envelope bounds.
+        \item Linearization with step-plateau check.
+        \item Mode identification.
+      \end{itemize}
+    \item \emph{Rule engine.} Cited, machine-readable criteria records
+      (MIL-F-8785C now, FAA Part 23 later); levels and normalized margins
+      over the flight envelope.
+    \item \emph{Uncertainty and verdict logic.}
+      \begin{itemize}
+        \item Bound-worst margin over a joint-coverage box.
+        \item Monte Carlo at the critical condition.
+        \item A ``robust'' verdict defined so that it is never weaker than
+          ``pass''.
+      \end{itemize}
+    \item \emph{Simulink and real time.}
+      \begin{itemize}
+        \item Generated 6-DOF models driven by the same aircraft object.
+        \item Visualization and pilot-in-the-loop.
+      \end{itemize}
+  \end{enumerate}
+
+\item \textbf{Verification methodology.}
+  \begin{itemize}
+    \item Evidence classes: published, independent, analytic, regression.
+    \item Red-green gated development.
+    \item A failure catalogue mapped to tests.
+    \item Sabotage (mutation) testing: every gate must detect deliberate
+      code faults.
+    \item NESC check cases as the external reference.
+  \end{itemize}
+
+\item \textbf{Case study: NASA F-16.}
+  \begin{enumerate}[label*=\arabic*.]
+    \item Data provenance: NASA TP-1538 $\rightarrow$ Stevens \& Lewis
+      $\rightarrow$ NESC DAVE-ML.
+    \item Trim reproduction and the 6-DOF trim hold in Simulink.
+    \item NESC dynamic check cases within the multi-simulation band.
+    \item MIL-F-8785C Class IV levels, critical conditions, pre-registered
+      degradations that must fail.
+    \item Design feedback: a pitch SAS and yaw damper restore the target
+      level, confirmed by re-assessment.
+    \item Uncertainty: robust verdicts and their sensitivity to assumed
+      widths.
+  \end{enumerate}
+
+\item \textbf{Toward distributed electric propulsion (planned).}
+  \begin{itemize}
+    \item A twin-engine and engine-out known-answer aircraft.
+    \item NASA X-57 Maxwell: canted propulsors, gyroscopic and propeller-wing
+      coupling.
+    \item Part 23 criteria.
+  \end{itemize}
+
+\item \textbf{Discussion and limitations.}
+  \begin{itemize}
+    \item Judgement-based uncertainty widths.
+    \item Linear criteria applied to nonlinear aircraft.
+    \item The scope of MIL-F-8785C versus modern standards.
+    \item The cost of verification.
+  \end{itemize}
+
+\item \textbf{Conclusions and future work.}
+\end{enumerate}
+
+%=====================================================================
+\section*{Expected contributions}
+\begin{enumerate}[label=C\arabic*.]
+  \item An aircraft-agnostic, frame-explicit model representation, verified to
+    reproduce a hand-written reference model exactly.
+  \item A gated, evidence-tagged verification method, including sabotage
+    testing, demonstrated against public NASA check cases.
+  \item A rule-based flying-qualities verdict with explicit margins, and a
+    consistent definition of a robust pass under uncertainty.
+  \item A demonstrated loop from verdict to design change on the F-16, with a
+    path to distributed-propulsion aircraft.
+\end{enumerate}
+
+%=====================================================================
+\begin{thebibliography}{99}\small
+\bibitem[Berndt(2004)]{berndt2004} J.~S. Berndt, ``JSBSim: An Open Source
+  Flight Dynamics Model in C++,'' AIAA Modeling and Simulation Technologies
+  Conf., AIAA 2004-4923, 2004. doi:10.2514/6.2004-4923.
+\bibitem[Lukaczyk et~al.(2015)]{lukaczyk2015} T.~W. Lukaczyk et~al., ``SUAVE:
+  An Open-Source Environment for Multi-Fidelity Conceptual Vehicle Design,''
+  16th AIAA/ISSMO MA\&O Conf., AIAA 2015-3087, 2015.
+\bibitem[Rizzi et~al.(2011)]{rizzi2011simsac} A.~Rizzi et~al., ``Modeling and
+  Simulating Aircraft Stability and Control---The SimSAC Project,'' Progress
+  in Aerospace Sciences, 2011. \todo{verify details; add
+  Goetzendorf-Grabowski SDSA paper}
+\bibitem[Swann and Takahashi(2015)]{swann2015} J.~Swann and T.~T. Takahashi,
+  ``A Total Flight Envelope Approach to Conceptual Design Stability \&
+  Control,'' AIAA 2015-3377, 2015.
+\bibitem[Fielding et~al.(2002)]{fielding2002} C.~Fielding, A.~Varga,
+  S.~Bennani, M.~Selier (eds.), \emph{Advanced Techniques for Clearance of
+  Flight Control Laws}, LNCIS 283, Springer, 2002.
+\bibitem[Murri et~al.(2015)]{nesc2015} D.~G. Murri, E.~B. Jackson,
+  R.~O. Shelton et~al., ``Check-Cases for Verification of
+  6-Degree-of-Freedom Flight Vehicle Simulations,'' NASA/TM-2015-218675,
+  Vols.~I--II, 2015.
+\bibitem[Mauery and Alonso(2021)]{mauery2021} T.~Mauery, J.~Alonso et~al.,
+  ``A Guide for Aircraft Certification by Analysis,'' NASA CR, NTRS
+  20210015404, 2021.
+\bibitem[Favaro et~al.(2025)]{favaro2025} F.~Favaro, D.~Rylko, G.~Quaranta,
+  ``Certification by Simulation of an eVTOL: Credibility Analysis of
+  Simulation Model Using Uncertainty Quantification,'' European Rotorcraft
+  Forum, 2025.
+\bibitem[Nguyen et~al.(1979)]{nguyen1979} L.~T. Nguyen et~al., ``Simulator
+  Study of Stall/Post-Stall Characteristics of a Fighter Airplane with
+  Relaxed Longitudinal Static Stability,'' NASA TP-1538, 1979.
+\bibitem[Stevens and Lewis(2003)]{stevens2003} B.~L. Stevens and
+  F.~L. Lewis, \emph{Aircraft Control and Simulation}, 2nd ed., Wiley, 2003.
+\bibitem[MIL-F-8785C(1980)]{mil8785c} \emph{Military Specification: Flying
+  Qualities of Piloted Airplanes}, MIL-F-8785C, 1980.
+\bibitem[AIAA(2011)]{s119} ANSI/AIAA S-119-2011, \emph{Flight Dynamic Model
+  Exchange Standard} (DAVE-ML).
+\end{thebibliography}
+\end{document}

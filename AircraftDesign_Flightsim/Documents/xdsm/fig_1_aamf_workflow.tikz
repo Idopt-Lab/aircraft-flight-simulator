@@ -1,0 +1,392 @@
+
+%%% Preamble Requirements %%%
+% \usepackage{geometry}
+% \usepackage{amsfonts}
+% \usepackage{amsmath}
+% \usepackage{amssymb}
+% \usepackage{tikz}
+
+% Optional packages such as sfmath set through python interface
+% \usepackage{}
+
+% \usetikzlibrary{arrows,chains,positioning,scopes,shapes.geometric,shapes.misc,shadows}
+
+%%% End Preamble Requirements %%%
+
+\input{"C:/Users/krish/AppData/Local/Programs/Python/Python310/lib/site-packages/pyxdsm/diagram_styles"}
+\begin{tikzpicture}
+
+\matrix[MatrixSetup]{
+%Row 0
+\node [DataIO] (output_deck) {$\begin{array}{c}\text{published X-57 data:} \\ \text{NTRS, ICAS, ASTM F44}\end{array}$};&
+&
+\node [DataIO] (output_ctx) {$\begin{array}{c}\text{gear},\ N_{CM},\ N_{HLP}, \\ \text{windmilling}\end{array}$};&
+&
+\node [DataIO] (output_trim) {$\begin{array}{c}V,\ h,\ \text{case} \\ \mathbf{u}^{(0)},\ \mathbf{u}_{lb},\mathbf{u}_{ub}\end{array}$};&
+&
+&
+&
+&
+\node [DataIO] (output_tloop) {$t_{end},\ \Delta t$};&
+&
+&
+\node [DataIO] (output_bridge) {$\text{ports } 50000/8765$};&
+&
+&
+\\
+%Row 1
+\node [Function] (deck) {$\begin{array}{c}\text{1: Input deck} \\ \texttt{X57Data}\end{array}$};&
+\node [DataInter] (deck-derv) {$\begin{array}{c}S,b,\bar c,\lambda,AR, \\ \text{airfoil}, S_h, S_v, l_h\end{array}$};&
+\node [DataInter] (deck-ctx) {$\text{deck}$};&
+\node [DataInter] (deck-asm) {$\begin{array}{c}\text{mass table, stations,} \\ \text{control limits}\end{array}$};&
+&
+&
+&
+\node [DataInter] (deck-perf) {$\text{published targets}$};&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 2
+&
+\node [Function] (derv) {$\begin{array}{c}\text{2: Derivative build-up} \\ \texttt{X57Aero}\end{array}$};&
+\node [DataInter] (derv-ctx) {$\begin{array}{c}C_{L\alpha},C_{m\alpha},C_{m0},\varepsilon_0, \\ \text{polars, blown lift}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_derv) {$x_{np},\ \text{SM},\ \mathbf{a}$};\\
+%Row 3
+&
+&
+\node [Function] (ctx) {$\begin{array}{c}\text{3: Configuration} \\ \texttt{X57Context}\end{array}$};&
+\node [DataInter] (ctx-asm) {$\texttt{ctx}$};&
+&
+\node [DataInter] (ctx-model) {$\begin{array}{c}\mathbf{a},\ N_{CM},\ N_{HLP}, \\ \text{gear}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 4
+&
+&
+&
+\node [Function] (asm) {$\begin{array}{c}\text{4: Aircraft assembly} \\ \texttt{X57Build}\end{array}$};&
+\node [DataInter] (asm-trim) {$m,\ \mathbf{r}_{cg},\ \mathbf{I}$};&
+\node [DataInter] (asm-model) {$\texttt{ac}\ \text{(frames, elements)}$};&
+&
+&
+\node [DataInter] (asm-xport) {$\texttt{ac},\ n_{cs},n_{pe}$};&
+&
+&
+&
+&
+&
+&
+\\
+%Row 5
+&
+&
+&
+&
+\node [MDA] (trim) {$\begin{array}{c}\text{5, 7: Trim solver} \\ \text{5 vars, 5 residuals}\end{array}$};&
+\node [DataInter] (trim-model) {$\mathbf{x}^{(k)},\ \mathbf{u}^{(k)}$};&
+\node [DataInter] (trim-stab) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-perf) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+\node [DataInter] (trim-xport) {$\mathbf{x}^*,\ \mathbf{u}^*$};&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_trim) {$\mathbf{x}^*,\ \mathbf{u}^*$};\\
+%Row 6
+&
+&
+&
+&
+\node [DataInter] (model-trim) {$\mathcal{R}(\mathbf{x},\mathbf{u})$};&
+\node [Group] (model) {$\begin{array}{c}\text{6: Force and moment} \\ \text{model (Fig. 2)}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+%Row 7
+&
+&
+&
+&
+&
+&
+\node [Function] (stab) {$\begin{array}{c}\text{8: Linearisation} \\ \text{FD sweep} \rightarrow \mathbf{A},\mathbf{B}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_stab) {$\mathbf{A},\mathbf{B},\ \lambda_i$};\\
+%Row 8
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (perf) {$\begin{array}{c}\text{9: Performance and} \\ \text{field (Fig. 3)}\end{array}$};&
+&
+&
+&
+&
+&
+&
+&
+\node [DataIO] (right_output_perf) {$V_s,\ L/D,\ V_{mc},\ RC,\ V_H$};\\
+%Row 9
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (xport) {$\begin{array}{c}\text{10: Simulink export} \\ \text{base workspace}\end{array}$};&
+\node [DataInter] (xport-tloop) {$\begin{array}{c}\text{Initialpos, Vel,} \\ \text{Ori, Rot}\end{array}$};&
+\node [DataInter] (xport-sfun) {$\begin{array}{c}\texttt{ac},\ n_{total}, \\ \texttt{control\_input\_data} \rightarrow \mathbf{u}\end{array}$};&
+&
+&
+&
+&
+\\
+%Row 10
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [MDA] (tloop) {$\begin{array}{c}\text{11, 13: 6-DOF} \\ \text{time integration}\end{array}$};&
+\node [DataInter] (tloop-sfun) {$\mathbf{x}(t)\ (12)$};&
+\node [DataInter] (tloop-fdm) {$\mathbf{r}_{NED},\ \phi,\theta,\psi$};&
+&
+&
+&
+\\
+%Row 11
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [DataInter] (sfun-tloop) {$\mathbf{F},\mathbf{M},m,\mathbf{I}$};&
+\node [Function] (sfun) {$\begin{array}{c}\text{12: S-function} \\ \texttt{aircraft\_sfunc}\end{array}$};&
+&
+&
+&
+&
+\\
+%Row 12
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (fdm) {$\begin{array}{c}\text{14: Geodetic and} \\ \text{net\_fdm packing}\end{array}$};&
+\node [DataInter] (fdm-bridge) {$\begin{array}{c}\text{net\_fdm v24,} \\ \text{408 B, UDP}\end{array}$};&
+&
+&
+\\
+%Row 13
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (bridge) {$\begin{array}{c}\text{15: UDP/WebSocket} \\ \texttt{main.py}\end{array}$};&
+\node [DataInter] (bridge-view) {$\text{JSON / WebSocket}$};&
+&
+\\
+%Row 14
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\node [Function] (view) {$\begin{array}{c}\text{16: CesiumJS viewer} \\ \texttt{main.js}\end{array}$};&
+&
+\node [DataIO] (right_output_view) {$\text{rendered trajectory}$};\\
+%Row 15
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+&
+\\
+};
+
+% XDSM process chains
+{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (deck);
+\chainin (derv) [join=by ProcessHVA];
+\chainin (ctx) [join=by ProcessHVA];
+\chainin (asm) [join=by ProcessHVA];
+\chainin (trim) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (trim);
+\chainin (model) [join=by ProcessHVA];
+\chainin (trim) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (trim);
+\chainin (stab) [join=by ProcessHVA];
+\chainin (perf) [join=by ProcessHVA];
+\chainin (xport) [join=by ProcessHVA];
+\chainin (tloop) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (tloop);
+\chainin (sfun) [join=by ProcessHVA];
+\chainin (tloop) [join=by ProcessHVA];
+\end{pgfonlayer}
+}{ [start chain=process]
+ \begin{pgfonlayer}{process} 
+\chainin (tloop);
+\chainin (fdm) [join=by ProcessHVA];
+\chainin (bridge) [join=by ProcessHVA];
+\chainin (view) [join=by ProcessHVA];
+\end{pgfonlayer}
+}
+
+\begin{pgfonlayer}{data}
+\path
+% Horizontal edges
+(deck) edge [DataLine] (deck-derv)
+(deck) edge [DataLine] (deck-ctx)
+(deck) edge [DataLine] (deck-asm)
+(deck) edge [DataLine] (deck-perf)
+(derv) edge [DataLine] (derv-ctx)
+(ctx) edge [DataLine] (ctx-asm)
+(ctx) edge [DataLine] (ctx-model)
+(asm) edge [DataLine] (asm-trim)
+(asm) edge [DataLine] (asm-model)
+(asm) edge [DataLine] (asm-xport)
+(trim) edge [DataLine] (trim-model)
+(model) edge [DataLine] (model-trim)
+(trim) edge [DataLine] (trim-stab)
+(trim) edge [DataLine] (trim-perf)
+(trim) edge [DataLine] (trim-xport)
+(xport) edge [DataLine] (xport-tloop)
+(xport) edge [DataLine] (xport-sfun)
+(tloop) edge [DataLine] (tloop-sfun)
+(sfun) edge [DataLine] (sfun-tloop)
+(tloop) edge [DataLine] (tloop-fdm)
+(fdm) edge [DataLine] (fdm-bridge)
+(bridge) edge [DataLine] (bridge-view)
+(derv) edge [DataLine] (right_output_derv)
+(trim) edge [DataLine] (right_output_trim)
+(stab) edge [DataLine] (right_output_stab)
+(perf) edge [DataLine] (right_output_perf)
+(view) edge [DataLine] (right_output_view)
+% Vertical edges
+(deck-derv) edge [DataLine] (derv)
+(deck-ctx) edge [DataLine] (ctx)
+(deck-asm) edge [DataLine] (asm)
+(deck-perf) edge [DataLine] (perf)
+(derv-ctx) edge [DataLine] (ctx)
+(ctx-asm) edge [DataLine] (asm)
+(ctx-model) edge [DataLine] (model)
+(asm-trim) edge [DataLine] (trim)
+(asm-model) edge [DataLine] (model)
+(asm-xport) edge [DataLine] (xport)
+(trim-model) edge [DataLine] (model)
+(model-trim) edge [DataLine] (trim)
+(trim-stab) edge [DataLine] (stab)
+(trim-perf) edge [DataLine] (perf)
+(trim-xport) edge [DataLine] (xport)
+(xport-tloop) edge [DataLine] (tloop)
+(xport-sfun) edge [DataLine] (sfun)
+(tloop-sfun) edge [DataLine] (sfun)
+(sfun-tloop) edge [DataLine] (tloop)
+(tloop-fdm) edge [DataLine] (fdm)
+(fdm-bridge) edge [DataLine] (bridge)
+(bridge-view) edge [DataLine] (view)
+(deck) edge [DataLine] (output_deck)
+(ctx) edge [DataLine] (output_ctx)
+(trim) edge [DataLine] (output_trim)
+(tloop) edge [DataLine] (output_tloop)
+(bridge) edge [DataLine] (output_bridge);
+\end{pgfonlayer}
+
+\end{tikzpicture}
